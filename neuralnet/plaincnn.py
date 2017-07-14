@@ -34,7 +34,7 @@ class PlainCNN(object):
     def convolve_with_bias_and_relu(self, scope_name, feature_in, indepth, outdepth, paddingMethod="SAME"):
         assert feature_in.get_shape()[-1] == indepth
         with tf.variable_scope(scope_name):
-            w=tf.get_variable(name="weight", shape=[3,3,indepth,outdepth],
+            w=tf.get_variable(name="weight", shape=[3,3,indepth, outdepth],
                               initializer=tf.random_normal_initializer(mean=0.0, stddev=2.0/indepth))
             b=tf.get_variable(name="bias", shape=[outdepth], initializer=tf.constant_initializer(0.0))
             h=tf.nn.conv2d(feature_in, w, strides=[1,1,1,1], padding=paddingMethod) + b
@@ -51,7 +51,7 @@ class PlainCNN(object):
             logits=tf.reshape(h, shape=[-1, BOARD_SIZE*BOARD_SIZE])+position_bias
             return logits
 
-    def train(self, data_input_file, batch_train_size, max_step, output_dir):
+    def train(self, data_input_file, batch_train_size, max_step, output_dir, resume_training=False, previous_checkpoint=''):
         logits=self.build_graph()
         loss=tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y_star, logits=logits)
 
@@ -64,10 +64,14 @@ class PlainCNN(object):
 
         from utils.input_data_util import PositionActionDataReader
         position_reader=PositionActionDataReader(position_action_filename=data_input_file, batch_size=batch_train_size)
+        position_reader.enableRandomFlip=True
+
         saver = tf.train.Saver()
         accu_writer=open(os.path.join(output_dir, "train_accuracy.txt"), "w")
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
+            if resume_training:
+                saver.restore(sess, previous_checkpoint)
             acc_list=[]
             for step in range(max_step+1):
                 position_reader.prepare_next_batch()
@@ -78,12 +82,14 @@ class PlainCNN(object):
                                            self.x:position_reader.batch_positions, self.y_star:position_reader.batch_labels})
                     print("step: ", step, " train accuracy: ", acc_train)
                     acc_list.append(acc_train)
-                    saver.save(sess, os.path.join(output_dir, "model.ckpt"), global_step=step)
+                    saver.save(sess, os.path.join(output_dir, "plaincnn_model.ckpt"), global_step=step)
                     accu_writer.write(repr(step)+' '+repr(acc_train)+'\n')
         #print("finished training on ", data_input_file, ", saving computation graph...")
         #tf.train.write_graph(sess.graph_def, "/tmp/saved_graph/", repr(BOARD_SIZE)+"graph.txt")
         #tf.train.write_graph(sess.graph_def, "/tmp/saved_graph/", repr(BOARD_SIZE) + "graph.pb", as_text=False)
         position_reader.close_file()
+        accu_writer.close()
+
         print("Done.")
 
     def plot_training(self, accuracies, scale=100):
@@ -105,6 +111,8 @@ if __name__ == "__main__":
     parser.add_argument('--batch_train_size', type=int, default=64)
     parser.add_argument('--input_file', type=str, default='')
     parser.add_argument('--output_dir', type=str, default='/tmp/saved_checkpoint/')
+    parser.add_argument('--resume_train', type=bool, default=False)
+    parser.add_argument('--previous_checkpoint', type=str, default='')
 
     args=parser.parse_args()
 
@@ -121,4 +129,5 @@ if __name__ == "__main__":
 
     cnn = PlainCNN()
     cnn.train(data_input_file=args.input_file, batch_train_size=args.batch_train_size,
-              max_step=args.max_train_step, output_dir=args.output_dir)
+              max_step=args.max_train_step, output_dir=args.output_dir,
+              resume_training=args.resume_train, previous_checkpoint=args.previous_checkpoint)
