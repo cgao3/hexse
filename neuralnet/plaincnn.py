@@ -97,7 +97,7 @@ class PlainCNN(object):
             exit(0)
 
         logits = self.build_graph(x_input)
-        softmax_logits = tf.nn.softmax(logits, dim=1, name='softmax_logits')
+        softmax_logits = tf.nn.softmax(logits, name='softmax_logits')
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y_star, logits=logits)
 
         accuracy_op = tf.reduce_mean(tf.cast(tf.equal(

@@ -1,6 +1,6 @@
 
 
-def plot_training(self, accuracies_file):
+def plot_training(accuracies_file):
     '''
     :param self:
     :param accuracies_file: path to train accuracy file
