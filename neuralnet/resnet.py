@@ -23,31 +23,24 @@ addition with x_i
 
 epsilon = 0.001
 
+MIN_BOARDSIZE=8
+MAX_BOARDSIZE=13
 
 class ResNet(object):
-    def __init__(self, boardsize=9, num_blocks=11, num_filters=64):
-        self.x_8x8 = tf.placeholder(dtype=tf.float32, shape=[None, 8 + 2 * PADDINGS, 8 + 2 * PADDINGS, INPUT_DEPTH], name='x_8x8_node')
-        self.x_9x9 = tf.placeholder(dtype=tf.float32, shape=[None, 9+2*PADDINGS, 9+2*PADDINGS, INPUT_DEPTH], name='x_9x9_node')
-        self.x_10x10=tf.placeholder(dtype=tf.float32, shape=[None, 10+2*PADDINGS, 10+2*PADDINGS, INPUT_DEPTH], name='x_10x10_node')
-        self.x_11x11=tf.placeholder(dtype=tf.float32, shape=[None, 11+2*PADDINGS, 11+2*PADDINGS, INPUT_DEPTH], name='x_11x11_node')
-        self.x_12x12 = tf.placeholder(dtype=tf.float32, shape=[None, 11 + 2 * PADDINGS, 11 + 2 * PADDINGS, INPUT_DEPTH], name='x_12x12_node')
-        self.x_13x13=tf.placeholder(dtype=tf.float32, shape=[None, 13+2*PADDINGS, 13+2*PADDINGS, INPUT_DEPTH], name='x_13x13_node')
+    def __init__(self, num_blocks=11, num_filters=64):
+
+        self.x_node_dict = {}
+        for i in range(MIN_BOARDSIZE, MAX_BOARDSIZE + 1, 1):
+            name = "x_" + repr(i) + 'x' + repr(i) + "_node"
+            self.x_node_dict[i] = tf.placeholder(dtype=tf.float32, shape=[None, i + 2, i + 2, INPUT_DEPTH], name=name)
 
         self.y_star = tf.placeholder(dtype=tf.int32, shape=(None,), name='y_star_node')
+        self.out_logits_dict = {}
+
         self.num_filters = num_filters
         self.num_blocks = num_blocks
-        self.boardsize=boardsize
 
         self.training = tf.placeholder(dtype=tf.bool, name='is_training')
-
-        tf.add_to_collection(name='x_inputs_8x8', value=self.x_8x8)
-        tf.add_to_collection(name='x_inputs_9x9', value=self.x_9x9)
-        tf.add_to_collection(name='x_inputs_10x10', value=self.x_10x10)
-        tf.add_to_collection(name='x_inputs_11x11', value=self.x_11x11)
-        tf.add_to_collection(name='x_inputs_12x12', value=self.x_12x12)
-        tf.add_to_collection(name='x_inputs_13x13', value=self.x_13x13)
-        tf.add_to_collection(name='y_star_label', value=self.y_star)
-        tf.add_to_collection(name='is_training_mode', value=self.training)
 
     def batch_norm_wrapper(self, inputs, var_name_prefix):
         pop_mean = tf.get_variable(name=var_name_prefix + '_pop_mean',
@@ -72,30 +65,34 @@ class ResNet(object):
 
         return tf.cond(self.training, true_func, false_func)
 
-    def build_graph(self, x_input):
-
-        w1 = tf.get_variable(name="w1", shape=[3, 3, INPUT_DEPTH, self.num_filters], dtype=tf.float32,
+    def build_graph(self):
+        reuse=False
+        for boardsize in range(MIN_BOARDSIZE, MAX_BOARDSIZE+1, 1):
+            with tf.variable_scope('resnet', reuse=reuse):
+                w1 = tf.get_variable(name="w1", shape=[3, 3, INPUT_DEPTH, self.num_filters], dtype=tf.float32,
                              initializer=tf.random_normal_initializer(0.0, math.sqrt(1.0 / (3 * 3 * INPUT_DEPTH))))
-        h = tf.nn.conv2d(x_input, w1, strides=[1, 1, 1, 1], padding='VALID')
+                h = tf.nn.conv2d(self.x_node_dict[boardsize], w1, strides=[1, 1, 1, 1], padding='VALID')
 
-        for i in range(self.num_blocks):
-            h = self.build_one_block(h, name_prefix='block%d' % i)
+                for i in range(self.num_blocks):
+                    h = self._build_one_block(h, name_prefix='block%d' % i)
 
-        '''
-        last layer uses 1x1,1 convolution, then reshape the output as [boardsize*boardsize]
-        '''
-        in_depth = h.get_shape()[-1]
-        with tf.variable_scope('output_layer'):
-            xavier = math.sqrt(2.0 / (1 * 1 * 32))
-            w = tf.get_variable(dtype=tf.float32, name="weight", shape=[1, 1, in_depth, 1],
-                                initializer=tf.random_normal_initializer(stddev=xavier))
-            position_bias = tf.get_variable(dtype=tf.float32, name='position_bias',
-                                            shape=[BOARD_SIZE * BOARD_SIZE], initializer=tf.constant_initializer(0.0))
-            h2 = tf.nn.conv2d(h, w, strides=[1, 1, 1, 1], padding='SAME')
-            logits = tf.reshape(h2, shape=[-1, self.boardsize * self.boardsize]) + position_bias
-            return logits
+                '''
+                last layer uses 1x1,1 convolution, then reshape the output as [boardsize*boardsize]
+                '''
+                in_depth = h.get_shape()[-1]
 
-    def build_one_block(self, inputs, name_prefix):
+                xavier = math.sqrt(2.0 / (1 * 1 * 32))
+                w = tf.get_variable(dtype=tf.float32, name="weight", shape=[1, 1, in_depth, 1],
+                                        initializer=tf.random_normal_initializer(stddev=xavier))
+
+                h2 = tf.nn.conv2d(h, w, strides=[1, 1, 1, 1], padding='SAME')
+                out_name='logits_'+repr(boardsize)+'x'+repr(boardsize)+'_node'
+                reuse=True
+
+            h3 = tf.reshape(h2, shape=[-1, boardsize* boardsize], name=out_name)
+            self.out_logits_dict[boardsize]= h3
+
+    def _build_one_block(self, inputs, name_prefix):
         original_inputs = inputs
         b1 = self.batch_norm_wrapper(inputs, var_name_prefix=name_prefix + '/batch_norm1')
         b1_hat = tf.nn.relu(b1)
@@ -115,37 +112,19 @@ class ResNet(object):
 
         return tf.add(original_inputs, h2)
 
-    def train(self, src_train_data_path, batch_train_size, max_step, output_dir, resume_training=False,
+    def train(self, src_train_data_path, boardsize, batch_train_size, max_step, output_dir, resume_training=False,
               previous_checkpoint=''):
-        x_input = None
-        if self.boardsize == 8:
-            x_input = self.x_8x8
-        elif self.boardsize == 9:
-            x_input = self.x_9x9
-        elif self.boardsize == 10:
-            x_input = self.x_10x10
-        elif self.boardsize == 11:
-            x_input = self.x_11x11
-        elif self.boardsize == 12:
-            x_input = self.x_12x12
-        elif self.boardsize == 13:
-            x_input = self.x_13x13
-        else:
-            print("unsupported boardsize, should be >=8, <=13")
-            exit(0)
-        logits = self.build_graph(x_input)
-        softmax_logits=tf.nn.softmax(logits, name='softmax_logits_node')
+        self.build_graph()
+        assert MIN_BOARDSIZE<= boardsize <= MAX_BOARDSIZE
+        train_logits=self.out_logits_dict[boardsize]
 
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y_star, logits=logits)
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y_star, logits=train_logits)
         optimizer = tf.train.AdamOptimizer().minimize(loss, name='train_op')
         accuracy_op = tf.reduce_mean(tf.cast(tf.equal(
-            self.y_star, tf.cast(tf.arg_max(logits, 1), tf.int32)), tf.float32), name='accuracy_node')
+            self.y_star, tf.cast(tf.arg_max(train_logits, 1), tf.int32)), tf.float32), name='accuracy_node')
 
-        tf.add_to_collection(name='train_op', value=optimizer)
-        tf.add_to_collection(name='softmax_logit_op', value=softmax_logits)
-        tf.add_to_collection(name='accuracy_op', value=accuracy_op)
-
-        reader = PositionActionDataReader(position_action_filename=src_train_data_path, batch_size=batch_train_size)
+        reader = PositionActionDataReader(position_action_filename=src_train_data_path,
+                                          batch_size=batch_train_size, boardsize=boardsize)
         reader.enableRandomFlip = True
         saver = tf.train.Saver()
         accu_writer = open(os.path.join(output_dir, "train_accuracy.txt"), "w")
@@ -155,17 +134,46 @@ class ResNet(object):
                 saver.restore(sess, previous_checkpoint)
             for step in range(max_step + 1):
                 reader.prepare_next_batch()
-                sess.run(optimizer, feed_dict={x_input: reader.batch_positions, self.y_star: reader.batch_labels, self.training: True})
+                sess.run(optimizer, feed_dict={self.x_node_dict[boardsize]: reader.batch_positions, self.y_star: reader.batch_labels, self.training: True})
                 if step % 20 == 0:
                     acc_train = sess.run(accuracy_op,
-                                         feed_dict={x_input: reader.batch_positions, self.y_star: reader.batch_labels, self.training: True})
+                                         feed_dict={self.x_node_dict[boardsize]: reader.batch_positions, self.y_star: reader.batch_labels, self.training: True})
                     accu_writer.write(repr(step) + ' ' + repr(acc_train) + '\n')
                     print("step: ", step, " resnet train accuracy: ", acc_train)
                     saver.save(sess, os.path.join(output_dir, "resnet_model.ckpt"), global_step=step)
-        print("Training finished.")
+            print("Training finished.")
+            tf.train.write_graph(sess.graph_def, output_dir, "resent-graph.pbtxt")
+            tf.train.write_graph(sess.graph_def, output_dir, "resnet-graph.pb", as_text=False)
         accu_writer.close()
         reader.close_file()
+        print('Done.')
 
+    def evaluate_on_test_data(self, src_test_data, boardsize, batch_size, saved_checkpoint, topk=1):
+        self.build_graph()
+        assert MIN_BOARDSIZE <= boardsize <= MAX_BOARDSIZE
+        logits = self.out_logits_dict[boardsize]
+
+        accuracy_op = tf.reduce_mean(tf.cast(tf.nn.in_top_k(predictions=logits, targets=self.y_star, k=topk), tf.float32))
+
+        reader = PositionActionDataReader(position_action_filename=src_test_data, batch_size=batch_size,
+                                          boardsize=boardsize)
+        reader.enableRandomFlip = False
+        saver = tf.train.Saver()
+        with tf.Session() as sess:
+            saver.restore(sess, saved_checkpoint)
+            batch_no = 0
+            over_all_acc = 0.0
+            while True:
+                is_next_epoch = reader.prepare_next_batch()
+                acc = sess.run(accuracy_op, feed_dict={
+                    self.x_node_dict[boardsize]: reader.batch_positions, self.y_star: reader.batch_labels, self.training:False})
+                print("batch no: ", batch_no, " test accuracy: ", acc)
+                batch_no += 1
+                over_all_acc += acc
+                if is_next_epoch:
+                    break
+            print("top: ", topk, "overall accuracy on test dataset", src_test_data, " is ", over_all_acc / batch_no)
+            reader.close_file()
 
 if __name__ == "__main__":
     import argparse
@@ -175,9 +183,18 @@ if __name__ == "__main__":
     parser.add_argument('--batch_train_size', type=int, default=128)
     parser.add_argument('--input_file', type=str, default='')
     parser.add_argument('--output_dir', type=str, default='/tmp/saved_checkpoint/')
-    parser.add_argument('--resume_train', type=bool, default=False)
+    parser.add_argument('--resume_train', action='store_true', default=False)
     parser.add_argument('--previous_checkpoint', type=str, default='')
+    parser.add_argument('--evaluate', type=bool, default=False)
+    parser.add_argument('--boardsize', type=int, default=9)
+    parser.add_argument('--topk', type=int, default=1)
     args = parser.parse_args()
+
+    if args.evaluate:
+        print('Testing')
+        resnet=ResNet(num_blocks=11, num_filters=64)
+        resnet.evaluate_on_test_data(args.input_file, args.boardsize, 100, args.previous_checkpoint, topk=args.topk)
+        exit(0)
 
     if not os.path.isfile(args.input_file):
         print("please input valid path to input training data file")
@@ -190,7 +207,7 @@ if __name__ == "__main__":
 
     print("Training for board size", BOARD_SIZE, BOARD_SIZE)
     print("output directory: ", args.output_dir)
-    resnet = ResNet(boardsize=9, num_blocks=11, num_filters=64)
-    resnet.train(src_train_data_path=args.input_file, batch_train_size=args.batch_train_size,
+    resnet = ResNet(num_blocks=11, num_filters=64)
+    resnet.train(src_train_data_path=args.input_file, boardsize=args.boardsize, batch_train_size=args.batch_train_size,
                  max_step=args.max_train_step, output_dir=args.output_dir,
                  resume_training=args.resume_train, previous_checkpoint=args.previous_checkpoint)

@@ -28,8 +28,9 @@ INPUT_DEPTH = 12
 
 
 class BuildInputTensor(object):
-    def __init__(self):
-        self._board = np.ndarray(dtype=np.int32, shape=(INPUT_WIDTH, INPUT_WIDTH))
+    def __init__(self, boardsize=9):
+        self.boardsize=boardsize
+        self._board = np.ndarray(dtype=np.int32, shape=(boardsize+2, self.boardsize+2))
         self.IndBlackStone = 0
         self.IndWhiteStone = 1
         self.IndEmptyPoint = 2
@@ -55,6 +56,7 @@ class BuildInputTensor(object):
     def _set_board(self, intMoveSeq):
         self._board.fill(HexColor.EMPTY)
         ''' set black padding boarders'''
+        INPUT_WIDTH=self.boardsize+2
         for i in range(self.NUMPADDING):
             self._board[0:INPUT_WIDTH, i] = HexColor.BLACK
             self._board[0:INPUT_WIDTH, INPUT_WIDTH - 1 - i] = HexColor.BLACK
@@ -64,7 +66,9 @@ class BuildInputTensor(object):
             self._board[INPUT_WIDTH - 1 - j, self.NUMPADDING:INPUT_WIDTH - self.NUMPADDING] = HexColor.WHITE
         turn = HexColor.BLACK
         for intMove in intMoveSeq:
-            (x, y) = MoveConvertUtil.intMoveToPair(intMove)
+            x=intMove//self.boardsize
+            y=intMove%self.boardsize
+            #(x, y) = MoveConvertUtil.intMoveToPair(intMove)
             x, y = x + self.NUMPADDING, y + self.NUMPADDING
             self._board[x, y] = turn
             turn = HexColor.EMPTY - turn
@@ -75,6 +79,7 @@ class BuildInputTensor(object):
         self.set_position_tensors_in_batch(batchPositionTensors, kth, intMoveSeq)
 
     def _set_bridge_endpoints(self, batch_position_tensors, kth, i, j):
+        INPUT_WIDTH=self.boardsize+2
         p1 = self._board[i, j], self._board[i + 1, j], self._board[i, j + 1], self._board[i + 1, j + 1]
         ind_bridge_black = self.IndBBridgeEndpoints
         ind_bridge_white = self.IndWBridgeEndpoints
@@ -109,6 +114,7 @@ class BuildInputTensor(object):
         return None
 
     def _set_toplay_save_bridge(self, batch_position_tensors, kth, i, j, toplay):
+        INPUT_WIDTH=self.boardsize+2
         turn = toplay
         ind = self.IndToplaySaveBridge
         p1 = self._board[i, j], self._board[i + 1, j], self._board[i, j + 1], self._board[i + 1, j + 1]
@@ -136,13 +142,13 @@ class BuildInputTensor(object):
 
     def _set_toplay_make_connection(self, batch_position_tensors, kth, i, j, toplay):
         if i - 1 >= 0 and j - 1 >= 0 and self._board[i, j] == HexColor.EMPTY:
-            p = self._board[i - 1, j], self._board[i, j - 1], self._board[i + 1, j - 1], self._board[i + 1, j], self._board[i, j + 1], self._board[
-                i - 1, j + 1]
+            p = self._board[i - 1, j], self._board[i, j - 1], self._board[i + 1, j - 1], self._board[i + 1, j], self._board[i, j + 1], self._board[i - 1, j + 1]
             if p[0] == p[3] == toplay or p[1] == p[4] == toplay or p[2] == p[5] == toplay:
                 batch_position_tensors[kth, i, j, self.IndToplayMakeConnection] = 1
         return None
 
     def _set_toplay_form_bridge(self, batch_position_tensors, kth, i, j, toplay):
+        INPUT_WIDTH=self.boardsize+2
         turn = toplay
         ind = self.IndToplayFormBridge
         p1 = self._board[i, j], self._board[i + 1, j], self._board[i, j + 1], self._board[i + 1, j + 1]
@@ -178,6 +184,7 @@ class BuildInputTensor(object):
         self._set_toplay_make_connection(batch_position_tensors, kth, i, j, HexColor.EMPTY - toplay)
 
     def set_position_tensors_in_batch(self, batchPositionTensors, kth, intMoveSeq):
+        INPUT_WIDTH=self.boardsize+2
         batch_positions = batchPositionTensors
 
         ''' set empty points first'''
@@ -199,7 +206,9 @@ class BuildInputTensor(object):
         turn = HexColor.BLACK
         ''' from filled square board, set black/white played stones and empty points in feature planes'''
         for intMove in intMoveSeq:
-            (x, y) = MoveConvertUtil.intMoveToPair(intMove)
+            #(x, y) = MoveConvertUtil.intMoveToPair(intMove)
+            x=intMove//self.boardsize
+            y=intMove%self.boardsize
             x, y = x + self.NUMPADDING, y + self.NUMPADDING
             ind = self.IndBlackStone if turn == HexColor.BLACK else self.IndWhiteStone
             batch_positions[kth, x, y, ind] = 1
@@ -253,46 +262,6 @@ class HexColor:
         pass
 
     BLACK, WHITE, EMPTY = range(1, 4)
-
-
-'''''
-rawmove is in the format 'a9', 'a10', 'b12', i.e., [a-zA-Z][0-9]{1-2}
-note that a0 is invalid, the second index starts from 1.
-'''''
-
-
-class MoveConvertUtil:
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def intMoveToPair(intMove):
-        x = intMove // BOARD_SIZE
-        y = intMove % BOARD_SIZE
-        return (x, y)
-
-    @staticmethod
-    def intPairToIntMove(pair):
-        x, y = pair
-        return x * BOARD_SIZE + y
-
-    @staticmethod
-    def rawMoveToIntMove(rawMove):
-        x = ord(rawMove[0].lower()) - ord('a')
-        y = int(rawMove[1:]) - 1
-        return x * BOARD_SIZE + y
-
-    @staticmethod
-    def intMoveToRaw(intMove):
-        x, y = MoveConvertUtil.intMoveToPair(intMove)
-        y += 1
-        return chr(x + ord('a')) + repr(y)
-
-    @staticmethod
-    def rotateMove180(intMove):
-        assert (0 <= intMove < BOARD_SIZE ** 2)
-        return BOARD_SIZE ** 2 - 1 - intMove
-
 
 if __name__ == "__main__":
     print("all definitions")

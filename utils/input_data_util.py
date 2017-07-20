@@ -1,5 +1,5 @@
 import numpy as np
-from commons.definitions import INPUT_DEPTH, INPUT_WIDTH, BuildInputTensor, BOARD_SIZE, MoveConvertUtil
+from commons.definitions import INPUT_DEPTH, BuildInputTensor
 
 
 class PositionActionDataReader(object):
@@ -16,8 +16,10 @@ class PositionActionDataReader(object):
 
     This reader reads a batch from raw-input-data, then prepares a batch of tensor inputs for neural net
     '''
-    def __init__(self, position_action_filename, batch_size):
 
+    def __init__(self, position_action_filename, batch_size, boardsize=9):
+        self.boardsize = boardsize
+        INPUT_WIDTH = self.boardsize + 2
         self.data_file_name = position_action_filename
         self.batch_size = batch_size
         self.reader = open(self.data_file_name, "r")
@@ -26,10 +28,10 @@ class PositionActionDataReader(object):
         self.currentLine = 0
 
         '''whether or not random 180 flip when preparing a batch '''
-        self.enableRandomFlip=False
+        self.enableRandomFlip = False
 
         '''see BuildInputTensor in commons.definitions for the detailed format of input data'''
-        self.tensorMakeUtil=BuildInputTensor()
+        self.tensorMakeUtil = BuildInputTensor(boardsize=self.boardsize)
 
     def close_file(self):
         self.reader.close()
@@ -53,33 +55,40 @@ class PositionActionDataReader(object):
     def _build_batch_at(self, kth, line):
         arr = line.strip().split()
         intMove = self._toIntMove(arr[-1])
-        rawMoves=arr[0:-1]
-        intgamestate=[self._toIntMove(i) for i in rawMoves]
-        if self.enableRandomFlip and np.random.random()<0.5:
-            intMove=MoveConvertUtil.rotateMove180(intMove)
+        rawMoves = arr[0:-1]
+        intgamestate = [self._toIntMove(i) for i in rawMoves]
+        if self.enableRandomFlip and np.random.random() < 0.5:
+            # intMove=MoveConvertUtil.rotateMove180(intMove)
+            intMove = self._rotate_180(intMove, self.boardsize)
             for i in range(len(intgamestate)):
-                intgamestate[i]=MoveConvertUtil.rotateMove180(intgamestate[i])
+                # intgamestate[i]=MoveConvertUtil.rotateMove180(intgamestate[i])
+                intgamestate[i] = self._rotate_180(intgamestate[i], self.boardsize)
         self.tensorMakeUtil.makeTensorInBatch(self.batch_positions, self.batch_labels, kth, intgamestate, intMove)
 
     def _toIntMove(self, raw):
         x = ord(raw[2].lower()) - ord('a')
         y = int(raw[3:-1]) - 1
-        assert(0<=x<BOARD_SIZE and 0<=y<BOARD_SIZE)
-        imove=x*BOARD_SIZE+y
+        assert (0 <= x < self.boardsize and 0 <= y < self.boardsize)
+        imove = x * self.boardsize + y
         return imove
+
+    def _rotate_180(self, int_move, boardsize):
+        assert (0 <= int_move < boardsize ** 2)
+        return boardsize ** 2 - 1 - int_move
 
 
 if __name__ == "__main__":
     print("Test input_data_util.PositionActionDataReader")
     import argparse
-    parser=argparse.ArgumentParser()
+
+    parser = argparse.ArgumentParser()
     parser.add_argument('--input_file', type=str, default="")
     parser.add_argument('--batch_size', type=int, default=100)
-    args=parser.parse_args()
+    args = parser.parse_args()
     if not args.input_file:
         print("please indicate --input_file")
         exit(0)
-    reader=PositionActionDataReader(args.input_file, args.batch_size)
+    reader = PositionActionDataReader(args.input_file, args.batch_size)
     print("current line ", reader.currentLine)
     reader.prepare_next_batch()
     print("current line ", reader.currentLine)
