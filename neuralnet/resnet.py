@@ -127,7 +127,7 @@ class ResNet(object):
                                           batch_size=batch_train_size, boardsize=boardsize)
         reader.enableRandomFlip = True
         saver = tf.train.Saver()
-        accu_writer = open(os.path.join(output_dir, "train_accuracy.txt"), "w")
+        accu_writer = open(os.path.join(output_dir, "train_accuracy_resnet.txt"), "w")
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             if resume_training:

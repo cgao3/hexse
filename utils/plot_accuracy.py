@@ -11,24 +11,21 @@ def plot_training(accuracies_file):
     '''
     reader = open(accuracies_file, "r")
     accuracies = []
-    prev_step = 0
-    step_num = 0
+
+    x=[]
     for line in reader:
         tmp = line.strip().split()
-        prev_step = step_num
         step_num, acc = int(tmp[0]), float(tmp[1])
         accuracies.append(acc)
+        x.append(step_num)
     reader.close()
 
-    scale = step_num - prev_step
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplot()
-    ax.plot(range(0, len(accuracies) * scale, scale), accuracies, "plain cnn")
-    ax.set_xlabel('Training step')
-    ax.set_ylabel('Accuracy')
-    ax.set_ylim([0.1, 1.0])
-    ax.set_title('plain CNN' + repr(self.num_hidden_layers) + ' hidden layer, 3x3-' +
-                 repr(self.num_filters) + 'convolution,accuracy')
+    plt.plot(x, accuracies)
+    plt.xlabel('Training step')
+    plt.ylabel('Accuracy')
+    plt.ylim([0.1, 1.0])
+    plt.title('cnn,accuracy')
     plt.show()
 
 
