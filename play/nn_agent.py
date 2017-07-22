@@ -21,6 +21,9 @@ class NeuralNetAgent(object):
         self.is_value_net=is_value_net
         self._initialize_game([])
 
+    def reinitialize(self):
+        self._initialize_game([])
+
     def _initialize_game(self, init_raw_move_seq):
         turn = 0
         self.int_game_state=[]
@@ -42,7 +45,7 @@ class NeuralNetAgent(object):
         self._load_model(self.const_graph_path)
 
     def _load_model(self, const_graph_path):
-        print("test")
+
         graph_def = graph_pb2.GraphDef()
         with open(const_graph_path, 'rb') as f:
             graph_def.ParseFromString(f.read())
@@ -53,11 +56,11 @@ class NeuralNetAgent(object):
 
         x_name='x_'+repr(self.boardsize)+'x'+repr(self.boardsize)+'_node:0'
         self.x_input_node=self.sess.graph.get_tensor_by_name(x_name)
-        print('find ', x_name, self.x_input_node)
+        #print('find ', x_name, self.x_input_node)
 
         output_name='logits_'+repr(self.boardsize)+'x'+repr(self.boardsize)+'_node:0'
         self.logits_node=self.sess.graph.get_tensor_by_name(output_name)
-        print('find, ', output_name, self.logits_node)
+        #print('find, ', output_name, self.logits_node)
 
         try:
             self.is_training_node=self.sess.graph.get_tensor_by_name('is_training:0')
@@ -78,8 +81,7 @@ class NeuralNetAgent(object):
         else:
             self.white_int_moves.append(int_move)
         self.int_game_state.append(int_move)
-
-        self.input_tensor_builder.set_position_label_in_batch(self.input_tensor, self.int_game_state)
+        return True
 
     def generate_move(self, player=None):
         if self.is_value_net:
@@ -90,7 +92,7 @@ class NeuralNetAgent(object):
             else:
                 logits_score = self.sess.run(self.logits_node, feed_dict={self.x_input_node:self.input_tensor,
                                                                                 self.is_training_node:False})
-            print('logits score:', logits_score)
+            #print('logits score:', logits_score)
             empty_points=[i for i in range(self.boardsize*self.boardsize) if i not in self.int_game_state]
             selected_int_move=softmax_selection(logits_score, empty_points)
 

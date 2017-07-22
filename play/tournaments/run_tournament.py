@@ -50,6 +50,13 @@ def run_single_match(black_agent, white_agent, boardsize, opening='', verbose=Fa
     print(state_to_str(game,boardsize))
     return game_status
 
+def mohex_settings(agent):
+    agent.sendCommand('param_mohex max_time 1')
+    pass
+
+def wolve_settings(agent):
+    agent.sendCommand('param_wolve max_depth 1')
+    pass
 
 if __name__ == "__main__":
     parser=argparse.ArgumentParser(description="tournament between agents")
@@ -77,6 +84,14 @@ if __name__ == "__main__":
     for i in range(num_games):
         black_player.sendCommand('boardsize '+repr(args.boardsize))
         white_player.sendCommand("boardsize " + repr(args.boardsize))
+        if 'mohex' in args.exe_black:
+            mohex_settings(black_player)
+        if 'mohex' in args.exe_white:
+            mohex_settings(white_player)
+        if 'wolve' in args.exe_black:
+            wolve_settings(black_player)
+        if 'wolve' in args.exe_white:
+            wolve_settings(white_player)
         if not opening_moves:
             print('empty board opening')
             winner =run_single_match(black_player, white_player, boardsize=args.boardsize, opening='', verbose=False)
@@ -91,3 +106,4 @@ if __name__ == "__main__":
     black_player.sendCommand('quit')
     white_player.sendCommand('quit')
     print("black win ", black_win_count, "white win count ", white_win_count)
+    print('black is '+args.exe_black+' , white is '+args.exe_white)

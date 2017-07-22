@@ -25,7 +25,7 @@ class PlainCNN(object):
     train op: train_op_node -> train_op_node:0
     '''
 
-    def __init__(self, n_hiddenLayers=6):
+    def __init__(self, n_hiddenLayers=12):
 
         self.num_hidden_layers = n_hiddenLayers
         self.x_node_dict={}

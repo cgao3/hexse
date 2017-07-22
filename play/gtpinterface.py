@@ -37,7 +37,7 @@ class GTPInterface(object):
     def gtp_quit(self, args=None):
         if hasattr(self.agent, 'sess'):
             self.agent.sess.close()
-        sys.exit()
+        return True, ""
 
     def gtp_clear(self, args=None):
         self.agent.reinitialize()

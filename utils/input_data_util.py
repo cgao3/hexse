@@ -54,6 +54,7 @@ class PositionActionDataReader(object):
 
     def _build_batch_at(self, kth, line):
         arr = line.strip().split()
+        print(line)
         intMove = self._toIntMove(arr[-1])
         rawMoves = arr[0:-1]
         intgamestate = [self._toIntMove(i) for i in rawMoves]
@@ -63,6 +64,7 @@ class PositionActionDataReader(object):
             for i in range(len(intgamestate)):
                 # intgamestate[i]=MoveConvertUtil.rotateMove180(intgamestate[i])
                 intgamestate[i] = self._rotate_180(intgamestate[i], self.boardsize)
+        print(intgamestate, intMove)
         self.tensorMakeUtil.makeTensorInBatch(self.batch_positions, self.batch_labels, kth, intgamestate, intMove)
 
     def _toIntMove(self, raw):
