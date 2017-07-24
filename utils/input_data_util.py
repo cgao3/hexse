@@ -23,8 +23,8 @@ class PositionActionDataReader(object):
         self.data_file_name = position_action_filename
         self.batch_size = batch_size
         self.reader = open(self.data_file_name, "r")
-        self.batch_positions = np.ndarray(shape=(batch_size, INPUT_WIDTH, INPUT_WIDTH, INPUT_DEPTH), dtype=np.uint32)
-        self.batch_labels = np.ndarray(shape=(batch_size,), dtype=np.uint16)
+        self.batch_positions = np.ndarray(shape=(batch_size, INPUT_WIDTH, INPUT_WIDTH, INPUT_DEPTH), dtype=np.int32)
+        self.batch_labels = np.ndarray(shape=(batch_size,), dtype=np.int16)
         self.currentLine = 0
 
         '''whether or not random 180 flip when preparing a batch '''
@@ -38,11 +38,13 @@ class PositionActionDataReader(object):
 
     def prepare_next_batch(self):
         self.batch_positions.fill(0)
-        self.batch_labels.fill(0)
+        self.batch_labels.fill(-1)
         next_epoch = False
+        #sum_value=0.0
         for i in range(self.batch_size):
             line = self.reader.readline()
             line = line.strip()
+            #sum_value += len(line.split())-1
             if len(line) == 0:
                 self.currentLine = 0
                 self.reader.seek(0)
@@ -50,11 +52,12 @@ class PositionActionDataReader(object):
                 next_epoch = True
             self._build_batch_at(i, line)
             self.currentLine += 1
+        #print('average length is:', sum_value/self.batch_size)
         return next_epoch
 
     def _build_batch_at(self, kth, line):
         arr = line.strip().split()
-        print(line)
+        #print(line)
         intMove = self._toIntMove(arr[-1])
         rawMoves = arr[0:-1]
         intgamestate = [self._toIntMove(i) for i in rawMoves]
@@ -64,9 +67,10 @@ class PositionActionDataReader(object):
             for i in range(len(intgamestate)):
                 # intgamestate[i]=MoveConvertUtil.rotateMove180(intgamestate[i])
                 intgamestate[i] = self._rotate_180(intgamestate[i], self.boardsize)
-        print(intgamestate, intMove)
+        #print(intgamestate, intMove)
         self.tensorMakeUtil.makeTensorInBatch(self.batch_positions, self.batch_labels, kth, intgamestate, intMove)
-
+        #print('kth=',kth, self.batch_positions[kth])
+        #self.print_feature_plane(kth, 4)
     def _toIntMove(self, raw):
         x = ord(raw[2].lower()) - ord('a')
         y = int(raw[3:-1]) - 1
@@ -78,6 +82,15 @@ class PositionActionDataReader(object):
         assert (0 <= int_move < boardsize ** 2)
         return boardsize ** 2 - 1 - int_move
 
+    def print_feature_plane(self, kth, depth_indx):
+        import sys
+        x=self.batch_positions[kth]
+        print('x shape:', np.shape(x))
+        for i in range(self.boardsize+2):
+            for j in range(self.boardsize+2):
+                sys.stdout.write(repr(x[j][i][depth_indx]))
+                sys.stdout.write(' ')
+            print(' ')
 
 if __name__ == "__main__":
     print("Test input_data_util.PositionActionDataReader")

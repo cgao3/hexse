@@ -2,7 +2,6 @@ import numpy as np
 
 BOARD_SIZE = 9
 PADDINGS = 1
-INPUT_WIDTH = BOARD_SIZE + 2 * PADDINGS
 
 '''
 input features description, 12 input planes in total
@@ -97,31 +96,31 @@ class BuildInputTensor(object):
                 2] != HexColor.WHITE:
                 batch_position_tensors[kth, i + 1, j - 1, ind_bridge_black] = 1
                 batch_position_tensors[kth, i, j + 1, ind_bridge_black] = 1
-            elif p2[1] == p2[3] == HexColor.WHITE and p2[0] != HexColor.BLACK and p2[
+            if p2[1] == p2[3] == HexColor.WHITE and p2[0] != HexColor.BLACK and p2[
                 2] != HexColor.BLACK:
                 batch_position_tensors[kth, i + 1, j - 1, ind_bridge_white] = 1
                 batch_position_tensors[kth, i, j + 1, ind_bridge_white] = 1
 
         if i + 2 < INPUT_WIDTH and j - 1 >= 0:
             p3 = self._board[i, j], self._board[i + 1, j - 1], self._board[i + 2, j - 1], self._board[i + 1, j]
-            if p3[0] == p3[2] == HexColor.BLACK and p3[1] != HexColor.WHITE and p3[1] != HexColor.WHITE:
+            if p3[0] == p3[2] == HexColor.BLACK and p3[1] != HexColor.WHITE and p3[3] != HexColor.WHITE:
                 batch_position_tensors[kth, i, j, ind_bridge_black] = 1
                 batch_position_tensors[kth, i + 2, j - 1, ind_bridge_black] = 1
-            elif p3[0] == p3[2] == HexColor.WHITE and p3[1] != HexColor.BLACK and p3[1] != HexColor.BLACK:
+            if p3[0] == p3[2] == HexColor.WHITE and p3[1] != HexColor.BLACK and p3[3] != HexColor.BLACK:
                 batch_position_tensors[kth, i, j, ind_bridge_white] = 1
                 batch_position_tensors[kth, i + 2, j - 1, ind_bridge_white] = 1
 
         return None
 
-    def _set_toplay_save_bridge(self, batch_position_tensors, kth, i, j, toplay):
+    def _set_toplay_save_bridge(self, batch_position_tensors, kth, i, j, toplay, ind):
         INPUT_WIDTH=self.boardsize+2
         turn = toplay
-        ind = self.IndToplaySaveBridge
+        #ind = self.IndToplaySaveBridge
         p1 = self._board[i, j], self._board[i + 1, j], self._board[i, j + 1], self._board[i + 1, j + 1]
         if p1[0] == p1[3] == turn:
             if p1[1] == HexColor.EMPTY and p1[2] == HexColor.EMPTY - turn:
                 batch_position_tensors[kth, i + 1, j, ind] = 1
-            elif p1[1] == HexColor.EMPTY - turn and p1[2] == HexColor.EMPTY:
+            if p1[1] == HexColor.EMPTY - turn and p1[2] == HexColor.EMPTY:
                 batch_position_tensors[kth, i, j + 1, ind] = 1
 
         if j - 1 >= 0:
@@ -129,7 +128,7 @@ class BuildInputTensor(object):
             if p2[1] == p2[3] == turn:
                 if p2[0] == HexColor.EMPTY and p2[2] == HexColor.EMPTY - turn:
                     batch_position_tensors[kth, i, j, ind] = 1
-                elif p2[0] == HexColor.EMPTY - turn and p2[2] == HexColor.EMPTY:
+                if p2[0] == HexColor.EMPTY - turn and p2[2] == HexColor.EMPTY:
                     batch_position_tensors[kth, i + 1, j, ind] = 1
         if j - 1 >= 0 and i + 2 < INPUT_WIDTH:
             p3 = self._board[i, j], self._board[i + 1, j - 1], self._board[i + 2, j - 1], self._board[i + 1, j]
@@ -140,22 +139,21 @@ class BuildInputTensor(object):
                     batch_position_tensors[kth, i + 1, j, ind] = 1
         return None
 
-    def _set_toplay_make_connection(self, batch_position_tensors, kth, i, j, toplay):
+    def _set_toplay_make_connection(self, batch_position_tensors, kth, i, j, toplay, ind):
         if i - 1 >= 0 and j - 1 >= 0 and self._board[i, j] == HexColor.EMPTY:
             p = self._board[i - 1, j], self._board[i, j - 1], self._board[i + 1, j - 1], self._board[i + 1, j], self._board[i, j + 1], self._board[i - 1, j + 1]
-            if p[0] == p[3] == toplay or p[1] == p[4] == toplay or p[2] == p[5] == toplay:
-                batch_position_tensors[kth, i, j, self.IndToplayMakeConnection] = 1
+            if (p[0] == p[3] == toplay) or (p[1] == p[4] == toplay) or (p[2] == p[5] == toplay):
+                batch_position_tensors[kth, i, j, ind] = 1
         return None
 
-    def _set_toplay_form_bridge(self, batch_position_tensors, kth, i, j, toplay):
+    def _set_toplay_form_bridge(self, batch_position_tensors, kth, i, j, toplay, ind):
         INPUT_WIDTH=self.boardsize+2
         turn = toplay
-        ind = self.IndToplayFormBridge
         p1 = self._board[i, j], self._board[i + 1, j], self._board[i, j + 1], self._board[i + 1, j + 1]
         if p1[1] == p1[2] == HexColor.EMPTY:
             if p1[0] == turn and p1[3] == HexColor.EMPTY:
                 batch_position_tensors[kth, i + 1, j + 1, ind] = 1
-            elif p1[0] == HexColor.EMPTY and p1[3] == turn:
+            if p1[0] == HexColor.EMPTY and p1[3] == turn:
                 batch_position_tensors[kth, i, j, ind] = 1
 
         if j - 1 >= 0:
@@ -163,32 +161,31 @@ class BuildInputTensor(object):
             if p2[0] == p2[2] == HexColor.EMPTY:
                 if p2[1] == HexColor.EMPTY and p2[3] == turn:
                     batch_position_tensors[kth, i + 1, j - 1, ind] = 1
-                elif p2[1] == turn and p2[3] == HexColor.EMPTY:
+                if p2[1] == turn and p2[3] == HexColor.EMPTY:
                     batch_position_tensors[kth, i, j + 1, ind] = 1
         if j - 1 >= 0 and i + 2 < INPUT_WIDTH:
             p3 = self._board[i, j], self._board[i + 1, j - 1], self._board[i + 2, j - 1], self._board[i + 1, j]
             if p3[1] == p3[3] == HexColor.EMPTY:
                 if p3[0] == HexColor.EMPTY and p3[2] == turn:
                     batch_position_tensors[kth, i, j, ind] = 1
-                elif p3[0] == turn and p3[2] == HexColor.EMPTY:
+                if p3[0] == turn and p3[2] == HexColor.EMPTY:
                     batch_position_tensors[kth, i + 2, j - 1, ind] = 1
         return None
 
-    def _set_toplay_block_opponent_save_bridge(self, batch_position_tensors, kth, i, j, toplay):
-        self._set_toplay_save_bridge(batch_position_tensors, kth, i, j, HexColor.EMPTY - toplay)
+    def _set_toplay_block_opponent_save_bridge(self, batch_position_tensors, kth, i, j, toplay, ind):
+        self._set_toplay_save_bridge(batch_position_tensors, kth, i, j, HexColor.EMPTY - toplay, ind)
 
-    def _set_toplay_block_opponent_form_bridge(self, batch_position_tensors, kth, i, j, toplay):
-        self._set_toplay_form_bridge(batch_position_tensors, kth, i, j, HexColor.EMPTY - toplay)
+    def _set_toplay_block_opponent_form_bridge(self, batch_position_tensors, kth, i, j, toplay, ind):
+        self._set_toplay_form_bridge(batch_position_tensors, kth, i, j, HexColor.EMPTY - toplay, ind)
 
-    def _set_toplay_block_opponent_make_connection(self, batch_position_tensors, kth, i, j, toplay):
-        self._set_toplay_make_connection(batch_position_tensors, kth, i, j, HexColor.EMPTY - toplay)
+    def _set_toplay_block_opponent_make_connection(self, batch_position_tensors, kth, i, j, toplay, ind):
+        self._set_toplay_make_connection(batch_position_tensors, kth, i, j, HexColor.EMPTY - toplay, ind)
 
-    def set_position_tensors_in_batch(self, batchPositionTensors, kth, intMoveSeq):
+    def set_position_tensors_in_batch(self, batch_positions, kth, intMoveSeq):
         INPUT_WIDTH=self.boardsize+2
-        batch_positions = batchPositionTensors
 
         ''' set empty points first'''
-        batchPositionTensors[kth, self.NUMPADDING:INPUT_WIDTH - self.NUMPADDING,
+        batch_positions[kth, self.NUMPADDING:INPUT_WIDTH - self.NUMPADDING,
         self.NUMPADDING:INPUT_WIDTH - self.NUMPADDING, self.IndEmptyPoint] = 1
 
         ''' set black occupied border  points'''
@@ -221,9 +218,9 @@ class BuildInputTensor(object):
 
         ''' set toplay plane, all one for Black to play, 0 for white'''
         if turn == HexColor.BLACK:
-            batch_positions[kth, 0:INPUT_WIDTH, 0:INPUT_WIDTH, self.IndToplay] = 1
-        else:
             batch_positions[kth, 0:INPUT_WIDTH, 0:INPUT_WIDTH, self.IndToplay] = 0
+        else:
+            batch_positions[kth, 0:INPUT_WIDTH, 0:INPUT_WIDTH, self.IndToplay] = 1
 
         '''
         Layout of the board
@@ -232,15 +229,15 @@ class BuildInputTensor(object):
         (i,j+1) --(i+1,j+1)
         '''
 
-        for i in range(self.NUMPADDING, INPUT_WIDTH - self.NUMPADDING):
-            for j in range(self.NUMPADDING, INPUT_WIDTH - self.NUMPADDING):
+        for i in range(INPUT_WIDTH-1):
+            for j in range(INPUT_WIDTH-1):
                 self._set_bridge_endpoints(batch_positions, kth, i, j)
-                self._set_toplay_form_bridge(batch_positions, kth, i, j, turn)
-                self._set_toplay_save_bridge(batch_positions, kth, i, j, turn)
-                self._set_toplay_make_connection(batch_positions, kth, i, j, turn)
-                self._set_toplay_block_opponent_save_bridge(batch_positions, kth, i, j, turn)
-                self._set_toplay_block_opponent_form_bridge(batch_positions, kth, i, j, turn)
-                self._set_toplay_block_opponent_make_connection(batch_positions, kth, i, j, turn)
+                self._set_toplay_form_bridge(batch_positions, kth, i, j, turn, self.IndToplayFormBridge)
+                self._set_toplay_save_bridge(batch_positions, kth, i, j, turn, self.IndToplaySaveBridge)
+                self._set_toplay_make_connection(batch_positions, kth, i, j, turn, self.IndToplayMakeConnection)
+                self._set_toplay_block_opponent_save_bridge(batch_positions, kth, i, j, turn, self.IndToplayBlockOppoBridge)
+                self._set_toplay_block_opponent_form_bridge(batch_positions, kth, i, j, turn, self.IndToplayBlockOppoFormBridge)
+                self._set_toplay_block_opponent_make_connection(batch_positions, kth, i, j, turn, self.IndToPlayBlockOppoMakeConnection)
 
 
 '''

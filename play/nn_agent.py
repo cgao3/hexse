@@ -87,13 +87,17 @@ class NeuralNetAgent(object):
         if self.is_value_net:
             pass
         else:
+            self.input_tensor_builder.set_position_tensors_in_batch(self.input_tensor, 0, self.int_game_state)
             if not hasattr(self, 'is_training_node') or not self.is_training_node:
                 logits_score = self.sess.run(self.logits_node, feed_dict={self.x_input_node: self.input_tensor})
             else:
                 logits_score = self.sess.run(self.logits_node, feed_dict={self.x_input_node:self.input_tensor,
                                                                                 self.is_training_node:False})
             #print('logits score:', logits_score)
-            empty_points=[i for i in range(self.boardsize*self.boardsize) if i not in self.int_game_state]
+            empty_points=[]
+            for i in range(self.boardsize*self.boardsize):
+                if i not in self.int_game_state:
+                    empty_points.append(i)
             selected_int_move=softmax_selection(logits_score, empty_points)
 
             self.int_game_state.append(selected_int_move)
@@ -117,8 +121,8 @@ def softmax_selection(logits, empty_points, temperature=1.0):
 
     effective_logits = [logits[i] for i in empty_points]
     max_value = np.max(effective_logits)
-    effective_logits -= max_value
-    effective_logits = np.exp(effective_logits)/temperature
+    effective_logits = effective_logits - max_value
+    effective_logits = np.exp(effective_logits)
     sum_value = np.sum(effective_logits)
     prob = effective_logits / sum_value
     #print(prob)

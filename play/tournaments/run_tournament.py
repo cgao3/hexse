@@ -56,6 +56,7 @@ def mohex_settings(agent):
 
 def wolve_settings(agent):
     agent.sendCommand('param_wolve max_depth 1')
+    #agent.sendCommand('param_wolve max_time 1')
     pass
 
 if __name__ == "__main__":

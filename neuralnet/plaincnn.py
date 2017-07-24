@@ -1,7 +1,7 @@
 import tensorflow as tf
 import os
 import math
-from commons.definitions import INPUT_WIDTH, INPUT_DEPTH, BOARD_SIZE, PADDINGS
+from commons.definitions import INPUT_DEPTH
 
 MIN_BOARDSIZE=8
 MAX_BOARDSIZE=13
@@ -135,10 +135,11 @@ class PlainCNN(object):
             if resume_training:
                 saver.restore(sess, previous_checkpoint)
 
+            tf.train.write_graph(sess.graph_def, output_dir, "plaincnn-graph.pbtxt")
+            tf.train.write_graph(sess.graph_def, output_dir, "plaincnn-graph.pb", as_text=False)
+
             for step in range(max_step + 1):
                 position_reader.prepare_next_batch()
-                sess.run(optimizer, feed_dict={self.x_node_dict[boardsize]: position_reader.batch_positions,
-                                               self.y_star: position_reader.batch_labels})
                 if step % 20 == 0:
                     acc_train = sess.run(accuracy_op, feed_dict={
                         self.x_node_dict[boardsize]: position_reader.batch_positions, self.y_star: position_reader.batch_labels})
@@ -146,9 +147,11 @@ class PlainCNN(object):
                     saver.save(sess, os.path.join(output_dir, "plaincnn_model.ckpt"), global_step=step)
                     accu_writer.write(repr(step) + ' ' + repr(acc_train) + '\n')
 
+                sess.run(optimizer, feed_dict={self.x_node_dict[boardsize]: position_reader.batch_positions,
+                                               self.y_star: position_reader.batch_labels})
+
         print("finished training on ", data_input_file, ", saving computation graph to " + output_dir)
-        tf.train.write_graph(sess.graph_def, output_dir, "plaincnn-graph.pbtxt")
-        tf.train.write_graph(sess.graph_def, output_dir, "plaincnn-graph.pb", as_text=False)
+
         position_reader.close_file()
         accu_writer.close()
         print("Done.")
@@ -189,7 +192,7 @@ if __name__ == "__main__":
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    print("Training for board size", BOARD_SIZE, BOARD_SIZE)
+    print("Training for board size", args.boardsize, args.boardsize)
     print("output directory: ", args.output_dir)
 
     cnn = PlainCNN(n_hiddenLayers=args.n_hidden_layer)

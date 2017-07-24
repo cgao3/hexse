@@ -1,5 +1,5 @@
 import tensorflow as tf
-from commons.definitions import BOARD_SIZE, INPUT_WIDTH, INPUT_DEPTH, PADDINGS
+from commons.definitions import BOARD_SIZE, INPUT_DEPTH
 from utils.input_data_util import PositionActionDataReader
 
 import math
@@ -9,16 +9,23 @@ import os
 Residual neural network,
 architecture specification:
 
-input [None, 11, 11, 12]
-=> conv3x3, 32, output is [9,9,32]
+input for 9x9 Hex board is [None, 11, 11, 12]
+=> conv3x3, num_filters, output is [9,9,32]
 
 => one resnet block:
-BN -> ReLU -> conv3x3, 32 ->
-BN -> ReLU -> conv3x3, 32 ->
+BN -> ReLU -> conv3x3, num_filters ->
+BN -> ReLU -> conv3x3, num_filters ->
 addition with x_i
 
-=> another resnet blcok as previous
+=> k resnet blcoks repetition
 
+naming:
+x_nxn_node: where n is board size
+y_star_node:
+
+is_training_node:
+
+logits_nxn_node: where n is boardsize
 '''
 
 epsilon = 0.001
@@ -27,7 +34,7 @@ MIN_BOARDSIZE=8
 MAX_BOARDSIZE=13
 
 class ResNet(object):
-    def __init__(self, num_blocks=11, num_filters=64):
+    def __init__(self, num_blocks=10, num_filters=64):
 
         self.x_node_dict = {}
         for i in range(MIN_BOARDSIZE, MAX_BOARDSIZE + 1, 1):
@@ -132,18 +139,23 @@ class ResNet(object):
             sess.run(tf.global_variables_initializer())
             if resume_training:
                 saver.restore(sess, previous_checkpoint)
+
+            tf.train.write_graph(sess.graph_def, output_dir, "resent-graph.pbtxt")
+            tf.train.write_graph(sess.graph_def, output_dir, "resnet-graph.pb", as_text=False)
+
             for step in range(max_step + 1):
                 reader.prepare_next_batch()
-                sess.run(optimizer, feed_dict={self.x_node_dict[boardsize]: reader.batch_positions, self.y_star: reader.batch_labels, self.training: True})
                 if step % 20 == 0:
                     acc_train = sess.run(accuracy_op,
                                          feed_dict={self.x_node_dict[boardsize]: reader.batch_positions, self.y_star: reader.batch_labels, self.training: True})
                     accu_writer.write(repr(step) + ' ' + repr(acc_train) + '\n')
                     print("step: ", step, " resnet train accuracy: ", acc_train)
                     saver.save(sess, os.path.join(output_dir, "resnet_model.ckpt"), global_step=step)
+
+                sess.run(optimizer,
+                         feed_dict={self.x_node_dict[boardsize]: reader.batch_positions, self.y_star: reader.batch_labels, self.training: True})
             print("Training finished.")
-            tf.train.write_graph(sess.graph_def, output_dir, "resent-graph.pbtxt")
-            tf.train.write_graph(sess.graph_def, output_dir, "resnet-graph.pb", as_text=False)
+
         accu_writer.close()
         reader.close_file()
         print('Done.')
@@ -192,7 +204,7 @@ if __name__ == "__main__":
 
     if args.evaluate:
         print('Testing')
-        resnet=ResNet(num_blocks=11, num_filters=64)
+        resnet=ResNet(num_blocks=10, num_filters=64)
         resnet.evaluate_on_test_data(args.input_file, args.boardsize, 100, args.previous_checkpoint, topk=args.topk)
         exit(0)
 
@@ -207,7 +219,7 @@ if __name__ == "__main__":
 
     print("Training for board size", BOARD_SIZE, BOARD_SIZE)
     print("output directory: ", args.output_dir)
-    resnet = ResNet(num_blocks=11, num_filters=64)
+    resnet = ResNet(num_blocks=10, num_filters=64)
     resnet.train(src_train_data_path=args.input_file, boardsize=args.boardsize, batch_train_size=args.batch_train_size,
                  max_step=args.max_train_step, output_dir=args.output_dir,
                  resume_training=args.resume_train, previous_checkpoint=args.previous_checkpoint)
