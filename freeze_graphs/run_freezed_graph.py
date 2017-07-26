@@ -22,7 +22,7 @@ def run(const_graph_path, input_tensor_name='x_9x9_node:0', run_tensor_name='sof
         input_builder=BuildInputTensor()
         batch_tensors=np.ndarray(shape=(1, boardsize+2, boardsize+2, 12))
         batch_tensors.fill(0)
-        input_builder.set_position_tensors_in_batch(batchPositionTensors=batch_tensors, kth=0, intMoveSeq=[])
+        input_builder.set_position_tensors_in_batch(batch_tensors, kth=0, intMoveSeq=[])
         if with_batch_normalization:
             is_train_node = sess.graph.get_tensor_by_name('is_training')
             res=sess.run(run_node, feed_dict={input_node:batch_tensors, is_train_node:False})

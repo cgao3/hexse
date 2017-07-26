@@ -53,11 +53,7 @@ class GTPInterface(object):
         assert ord('a') <= ord(raw_move[0]) <= ord('a')+self.agent.boardsize
         assert 1 <= int(raw_move[1:]) <= self.agent.boardsize
 
-        ret=self.agent.play_move(player, raw_move) 
-
-        if not ret:
-            return False, 'invalid input'
-
+        self.agent.play_move(player, raw_move)
         return True, ""
 
     def gtp_genmove(self, args):
@@ -68,14 +64,14 @@ class GTPInterface(object):
 
     def gtp_boardsize(self, args=None):
         boardsize=int(args[0])
-        print('boardsize: ', boardsize)
+        #print('boardsize: ', boardsize)
         assert (3<= boardsize <= 19)
         self.agent.set_boardsize(boardsize)
         return True, ""
 
     def gtp_show(self, args=None):
         from utils.hexutils import state_to_str
-        print("agent boardsize, ", self.agent.boardsize)
+        #print("agent boardsize, ", self.agent.boardsize)
         int_game_state=[]
         j1=0
         j2=0

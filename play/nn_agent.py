@@ -62,11 +62,6 @@ class NeuralNetAgent(object):
         self.logits_node=self.sess.graph.get_tensor_by_name(output_name)
         #print('find, ', output_name, self.logits_node)
 
-        try:
-            self.is_training_node=self.sess.graph.get_tensor_by_name('is_training:0')
-        except Exception as e:
-            print(e.message)
-            self.is_value_net=None
 
     def set_boardsize(self, boardsize):
         self.boardsize=boardsize
@@ -121,8 +116,13 @@ def softmax_selection(logits, empty_points, temperature=1.0):
 
     effective_logits = [logits[i] for i in empty_points]
     max_value = np.max(effective_logits)
-    effective_logits = effective_logits - max_value
+    effective_logits -=  max_value
+
+    for i in range(len(effective_logits)):
+        effective_logits[i]=effective_logits[i]/temperature
+
     effective_logits = np.exp(effective_logits)
+
     sum_value = np.sum(effective_logits)
     prob = effective_logits / sum_value
     #print(prob)
@@ -139,7 +139,7 @@ def softmax_selection(logits, empty_points, temperature=1.0):
 
 
 def run2(const_graph_path, boardsize, is_value_net=False):
-    print('const_graph_path, ', const_graph_path)
+    #print('const_graph_path, ', const_graph_path)
     agent=NeuralNetAgent(const_graph_path, boardsize=boardsize, name='nn_agent', is_value_net=is_value_net)
     interface=GTPInterface(agent)
     while True:
