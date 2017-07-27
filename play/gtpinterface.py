@@ -3,7 +3,6 @@ import sys
 class GTPInterface(object):
     def __init__(self, agent):
         self.agent = agent
-
         commands = {"name": self.gtp_name,
                     "genmove": self.gtp_genmove,
                     "quit": self.gtp_quit,
@@ -23,7 +22,7 @@ class GTPInterface(object):
 
         # ignore unknow commands
         if func_key not in self.commands:
-            return True, ""
+            return True, "    "
 
         # call that function with parameters
         return self.commands[func_key](args)
@@ -37,11 +36,11 @@ class GTPInterface(object):
     def gtp_quit(self, args=None):
         if hasattr(self.agent, 'sess'):
             self.agent.sess.close()
-        return True, ""
+        return True, "     "
 
     def gtp_clear(self, args=None):
         self.agent.reinitialize()
-        return True, ""
+        return True, "    "
 
     def gtp_play(self, args):
         # play black/white a1
@@ -54,7 +53,7 @@ class GTPInterface(object):
         assert 1 <= int(raw_move[1:]) <= self.agent.boardsize
 
         self.agent.play_move(player, raw_move)
-        return True, ""
+        return True, raw_move
 
     def gtp_genmove(self, args):
         assert (args[0][0] == 'b' or args[0][0] == 'w')
@@ -67,7 +66,7 @@ class GTPInterface(object):
         #print('boardsize: ', boardsize)
         assert (3<= boardsize <= 19)
         self.agent.set_boardsize(boardsize)
-        return True, ""
+        return True, "    "
 
     def gtp_show(self, args=None):
         from utils.hexutils import state_to_str
@@ -83,11 +82,13 @@ class GTPInterface(object):
                 int_move=self.agent.white_int_moves[j2]
                 j2 += 1
             int_game_state.append(int_move)
-        return True, state_to_str(int_game_state, self.agent.boardsize)
+        if self.agent.verbose:
+            print(state_to_str(int_game_state, self.agent.boardsize))
+        return True, "        "
 
     def gtp_close(self, args=None):
         try:
             self.agent.sess.close()
         except AttributeError:
             pass
-        return True, ""
+        return True, "    "

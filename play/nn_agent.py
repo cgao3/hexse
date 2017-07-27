@@ -14,12 +14,13 @@ input: x_8x8_node:0 (optional is_training_node:0 set to False for batch normaliz
 output: logits_8x8_node:0
 '''
 class NeuralNetAgent(object):
-    def __init__(self, const_graph_path, name, boardsize, is_value_net=False):
+    def __init__(self, const_graph_path, name, boardsize, verbose=False, is_value_net=False):
         self.const_graph_path=const_graph_path
         self.boardsize = boardsize
         self.name = name
         self.is_value_net=is_value_net
         self._initialize_game([])
+        self.verbose=verbose
 
     def reinitialize(self):
         self._initialize_game([])
@@ -146,19 +147,19 @@ def run2(const_graph_path, boardsize, is_value_net=False):
         command=raw_input()
         success, response =interface.send_command(command)
         print("= " if success else "? ")
-        print(response + "\n")
+        print(str(response) + "\n")
         sys.stdout.flush()
 
 if __name__ == "__main__":
     import argparse
     import os
     parser=argparse.ArgumentParser(description='test')
-    parser.add_argument('--const_graph_path', type=str, default='', help="the path of the freezed constant graph")
-    parser.add_argument('--value_net', action='store_true', help="value_net model?")
-    parser.add_argument('--verbose', action='store_true', help='verbose?')
+    parser.add_argument('--input_const_graph', type=str, default='', help="the path of the freezed constant graph")
+    parser.add_argument('--value_net', action='store_true', default=False, help="value_net model?")
+    parser.add_argument('--verbose', action='store_true', default=False, help='verbose?')
     parser.add_argument('--boardsize', type=int, default=9)
     args=parser.parse_args()
-    if not os.path.isfile(args.const_graph_path):
+    if not os.path.isfile(args.input_const_graph):
         print('please indicate path to constant graph, use --help for details')
         sys.exit(0)
-    run2(const_graph_path=args.const_graph_path, boardsize=args.boardsize, is_value_net=args.value_net)
+    run2(const_graph_path=args.input_const_graph, boardsize=args.boardsize, is_value_net=args.value_net)

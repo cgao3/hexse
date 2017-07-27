@@ -138,26 +138,41 @@ class ResNet(object):
                                           batch_size=batch_train_size, boardsize=boardsize)
         reader.enableRandomFlip = True
         saver = tf.train.Saver()
-        accu_writer = open(os.path.join(output_dir, "train_accuracy_resnet.txt"), "w")
+        acc_out_name='resnet_train_accuracies'+repr(self.num_blocks)+'_blocks_'+\
+                     repr(self.num_filters)+'_filters_perconv.txt'
+        accu_writer = open(os.path.join(output_dir, acc_out_name), "w")
+
+        epoch_acc_sum = 0.0
+        epoch_num = 0
+        eval_step = 0
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             if resume_training:
                 saver.restore(sess, previous_checkpoint)
 
             for step in range(max_step + 1):
-                reader.prepare_next_batch()
-                if step % 20 == 0:
+                is_next_epoch=reader.prepare_next_batch()
+                if step % 50 == 0:
+                    eval_step += 1
                     acc_train = sess.run(accuracy_op,
                                          feed_dict={x_node_dict[boardsize]: reader.batch_positions, y_star: reader.batch_labels})
                     accu_writer.write(repr(step) + ' ' + repr(acc_train) + '\n')
                     print("step: ", step, " resnet train accuracy: ", acc_train)
                     saver.save(sess, os.path.join(output_dir, "resnet_model.ckpt"), global_step=step)
+                    epoch_acc_sum +=acc_train
+
+                if is_next_epoch:
+                    print('epoch ', epoch_num, 'epoch train acc: ', epoch_acc_sum/eval_step)
+                    accu_writer.write('epoch '+repr(epoch_num) + ' epoch_acc:' + repr(epoch_acc_sum/eval_step) + '\n')
+                    epoch_num+=1
+                    eval_step=0
+                    epoch_acc_sum=0.0
 
                 sess.run(optimizer,
                          feed_dict={x_node_dict[boardsize]: reader.batch_positions, y_star: reader.batch_labels})
             print("Training finished.")
 
-        print('You must run the evaluation function to save correct graph for batch normalization!') # can we do better?
+        print('reset the graph for inference batch normalization!') # can we do better?
         tf.reset_default_graph()
         self.build_graph(is_training_phase=False)
         tf.train.write_graph(tf.get_default_graph(), output_dir, 'resnet-graph.pbtxt', as_text=True)

@@ -4,7 +4,8 @@ import math
 from commons.definitions import INPUT_DEPTH
 
 MIN_BOARDSIZE=8
-MAX_BOARDSIZE=13
+MAX_BOARDSIZE=15
+
 
 class PlainCNN(object):
     '''
@@ -129,7 +130,12 @@ class PlainCNN(object):
         position_reader.enableRandomFlip = True
 
         saver = tf.train.Saver()
-        accu_writer = open(os.path.join(output_dir, "train_accuracy_plaincnn.txt"), "w")
+        acc_out_name='plaincnn_train_accuracies_'+repr(self.num_hidden_layers)\
+                     +'hidden_layers_'+repr(self.num_filters)+"_filters.txt"
+        accu_writer = open(os.path.join(output_dir, acc_out_name), "w")
+        epoch_acc_sum = 0.0
+        epoch_num = 0
+        eval_step = 0
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             if resume_training:
@@ -139,13 +145,22 @@ class PlainCNN(object):
             tf.train.write_graph(sess.graph_def, output_dir, "plaincnn-graph.pb", as_text=False)
 
             for step in range(max_step + 1):
-                position_reader.prepare_next_batch()
-                if step % 20 == 0:
+                is_next_epoch=position_reader.prepare_next_batch()
+                if step % 50 == 0:
+                    eval_step += 1
                     acc_train = sess.run(accuracy_op, feed_dict={
                         self.x_node_dict[boardsize]: position_reader.batch_positions, self.y_star: position_reader.batch_labels})
                     print("step: ", step, " train accuracy: ", acc_train)
                     saver.save(sess, os.path.join(output_dir, "plaincnn_model.ckpt"), global_step=step)
                     accu_writer.write(repr(step) + ' ' + repr(acc_train) + '\n')
+                    epoch_acc_sum +=acc_train
+
+                if is_next_epoch:
+                    print('epoch ', epoch_num, 'epoch train acc: ', epoch_acc_sum/eval_step)
+                    accu_writer.write('epoch '+repr(epoch_num) + ' epoch_acc:' + repr(epoch_acc_sum/eval_step) + '\n')
+                    epoch_num+=1
+                    eval_step=0
+                    epoch_acc_sum=0.0
 
                 sess.run(optimizer, feed_dict={self.x_node_dict[boardsize]: position_reader.batch_positions,
                                                self.y_star: position_reader.batch_labels})
