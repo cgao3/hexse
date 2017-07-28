@@ -137,7 +137,7 @@ class ResNet(object):
         reader = PositionActionDataReader(position_action_filename=src_train_data_path,
                                           batch_size=batch_train_size, boardsize=boardsize)
         reader.enableRandomFlip = True
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(max_to_keep=20)
         acc_out_name='resnet_train_accuracies'+repr(self.num_blocks)+'_blocks_'+\
                      repr(self.num_filters)+'_filters_perconv.txt'
         accu_writer = open(os.path.join(output_dir, acc_out_name), "w")
@@ -158,7 +158,7 @@ class ResNet(object):
                                          feed_dict={x_node_dict[boardsize]: reader.batch_positions, y_star: reader.batch_labels})
                     accu_writer.write(repr(step) + ' ' + repr(acc_train) + '\n')
                     print("step: ", step, " resnet train accuracy: ", acc_train)
-                    saver.save(sess, os.path.join(output_dir, "resnet_model.ckpt"), global_step=step)
+
                     epoch_acc_sum +=acc_train
 
                 if is_next_epoch:
@@ -167,6 +167,7 @@ class ResNet(object):
                     epoch_num+=1
                     eval_step=0
                     epoch_acc_sum=0.0
+                    saver.save(sess, os.path.join(output_dir, "resnet_model.ckpt"), global_step=epoch_num)
 
                 sess.run(optimizer,
                          feed_dict={x_node_dict[boardsize]: reader.batch_positions, y_star: reader.batch_labels})

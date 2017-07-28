@@ -129,7 +129,7 @@ class PlainCNN(object):
                                                    batch_size=batch_train_size, boardsize=boardsize)
         position_reader.enableRandomFlip = True
 
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(max_to_keep=20)
         acc_out_name='plaincnn_train_accuracies_'+repr(self.num_hidden_layers)\
                      +'hidden_layers_'+repr(self.num_filters)+"_filters.txt"
         accu_writer = open(os.path.join(output_dir, acc_out_name), "w")
@@ -151,7 +151,6 @@ class PlainCNN(object):
                     acc_train = sess.run(accuracy_op, feed_dict={
                         self.x_node_dict[boardsize]: position_reader.batch_positions, self.y_star: position_reader.batch_labels})
                     print("step: ", step, " train accuracy: ", acc_train)
-                    saver.save(sess, os.path.join(output_dir, "plaincnn_model.ckpt"), global_step=step)
                     accu_writer.write(repr(step) + ' ' + repr(acc_train) + '\n')
                     epoch_acc_sum +=acc_train
 
@@ -161,6 +160,8 @@ class PlainCNN(object):
                     epoch_num+=1
                     eval_step=0
                     epoch_acc_sum=0.0
+                    saver.save(sess, os.path.join(output_dir, "plaincnn_model.ckpt"), global_step=epoch_num)
+
 
                 sess.run(optimizer, feed_dict={self.x_node_dict[boardsize]: position_reader.batch_positions,
                                                self.y_star: position_reader.batch_labels})
