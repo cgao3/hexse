@@ -1,5 +1,5 @@
 import numpy as np
-from commons.definitions import INPUT_DEPTH, BuildInputTensor
+from commons.definitions2 import INPUT_DEPTH, BuildInputTensor
 
 
 class PositionActionDataReader(object):

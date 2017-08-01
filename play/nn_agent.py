@@ -6,7 +6,7 @@ import numpy as np
 from utils.hexutils import MoveConvert
 from play.gtpinterface import GTPInterface
 import sys
-from commons.definitions import BuildInputTensor, INPUT_DEPTH
+from commons.definitions2 import BuildInputTensor, INPUT_DEPTH
 
 '''
 Neural net agent, load from freezed constant graph.
