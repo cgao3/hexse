@@ -2,6 +2,12 @@ import tensorflow as tf
 import os
 import math
 from commons.definitions import INPUT_DEPTH
+import numpy as np
+
+from utils.unionfind import unionfind
+from commons.definitions import HexColor
+from utils.hexutils import GameCheck
+from play.nn_agent import softmax_selection
 
 MIN_BOARDSIZE=8
 MAX_BOARDSIZE=15
@@ -106,6 +112,159 @@ class PlainCNN(object):
                     break
             print("top: ", topk, " overall accuracy on test dataset", input_data_file, " is ", over_all_acc / batch_no)
             position_reader.close_file()
+    '''
+    self-play one game using policy net
+    '''
+    def playonegame(self, sess, logits, boardsize, x_input_node, starting_intgamestate):
+        self.input_tensor.fill(0)
+        black_groups = unionfind()
+        white_groups = unionfind()
+        turn=HexColor.BLACK
+        intgamestate=[]
+        for imove in starting_intgamestate:
+            black_groups, white_groups = GameCheck.updateUF(intgamestate, black_groups, white_groups,
+                                                        imove, turn, boardsize)
+            turn = HexColor.EMPTY - turn
+            intgamestate.append(imove)
+
+        whoplayedlastmove=HexColor.BLACK if len(intgamestate)%2 == 1 else HexColor.WHITE
+        game_status = GameCheck.winner(black_groups, white_groups)
+        empty_points = []
+        for i in range(boardsize * boardsize):
+            if i not in intgamestate:
+                empty_points.append(i)
+        while game_status == HexColor.EMPTY:
+            self.input_tensor_builder.set_position_tensors_in_batch(self.input_tensor, 0, intgamestate)
+            logits_score = sess.run(logits, feed_dict={x_input_node: self.input_tensor})
+            selected_int_move = softmax_selection(logits_score, empty_points)
+            black_groups, white_groups = GameCheck.updateUF(intgamestate, black_groups, white_groups,
+                                                            selected_int_move, turn, boardsize)
+            game_status = GameCheck.winner(black_groups, white_groups)
+            intgamestate.append(selected_int_move)
+            empty_points.remove(selected_int_move)
+            turn = HexColor.EMPTY - turn
+
+        reward =1.0 if game_status == whoplayedlastmove else -1.0
+        #print('played one game')
+        return  reward
+
+    '''
+    self-play a batch of games using policy net
+    '''
+    def playbatchgame(self, sess, logits, boardsize, batchsize, x_input_node, topk, is_adversarial_pg=False):
+        intmoveseqlist=[]
+        gameresultlist=[]
+        batch_cnt=0
+        while batch_cnt < batchsize:
+            self.input_tensor.fill(0)
+            black_groups=unionfind()
+            white_groups=unionfind()
+            turn=HexColor.BLACK
+            intgamestate=[]
+            game_status = HexColor.EMPTY
+            k=np.random.randint(1,20)
+            cnt=0
+            empty_points = []
+            for i in range(boardsize * boardsize):
+                if i not in intgamestate:
+                    empty_points.append(i)
+            while game_status == HexColor.EMPTY and cnt<k:
+                self.input_tensor_builder.set_position_tensors_in_batch(self.input_tensor, 0, intgamestate)
+                logits_score = sess.run(logits, feed_dict={x_input_node: self.input_tensor})
+
+                selected_int_move = softmax_selection(logits_score, empty_points, temperature=5.0)
+                black_groups, white_groups = GameCheck.updateUF(intgamestate, black_groups, white_groups,
+                                                                selected_int_move, turn, boardsize)
+                game_status = GameCheck.winner(black_groups, white_groups)
+                intgamestate.append(selected_int_move)
+                empty_points.remove(selected_int_move)
+                turn = HexColor.EMPTY - turn
+                cnt += 1
+            if game_status != HexColor.EMPTY:
+                print('wasted!')
+                continue
+            intmoveseqlist.append(intgamestate)
+            if is_adversarial_pg:
+                self.input_tensor_builder.set_position_tensors_in_batch(self.input_tensor, 0, intgamestate)
+                logits_score = sess.run(logits, feed_dict={x_input_node: self.input_tensor})
+                logits_score = np.squeeze(logits_score)
+                top_points=np.argpartition(-logits_score, kth=topk)[:topk]
+                top_points=top_points.tolist()
+                for i in top_points:
+                    if i not in empty_points:
+                        top_points.remove(i)
+                if len(top_points) == 0:
+                    top_points=np.random.choice(empty_points, topk)
+                min_reward=2.0
+                for i in top_points:
+                    intgamestate.append(i)
+                    reward = self.playonegame(sess, logits, boardsize, x_input_node, starting_intgamestate=intgamestate)
+                    reward = -reward
+                    min_reward = min(reward, min_reward)
+                    intgamestate.remove(i)
+                gameresultlist.append(min_reward)
+            else:
+                reward=self.playonegame(sess, logits, boardsize, x_input_node, starting_intgamestate=intgamestate)
+                gameresultlist.append(reward)
+            batch_cnt += 1
+        return intmoveseqlist, gameresultlist
+
+    '''
+    Given a supervised learning trained policy, use policy gradient to refine it!
+    '''
+    def policygradient(self, boardsize, saved_checkpoint, output_dir, hyerparameter, is_adversarial_pg = False):
+        #batch_size = 128
+        batch_size = hyerparameter['batch_size']
+        max_iterations = hyerparameter['max_iteration']
+        learning_rate = hyerparameter['learning_rate']
+        topk=hyperparameter['topk']
+        #max_iterations = 100, learning_rate = 0.003,
+        self.build_graph()
+        assert MIN_BOARDSIZE<= boardsize <= MAX_BOARDSIZE
+        output_logits=self.out_logits_dict[boardsize]
+        '''
+        PG use the same architecture except that the loss function has a Reward value!
+        '''
+        crossentropy=tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y_star, logits=output_logits)
+        rewards_node=tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
+        loss=tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
+        optimizer=tf.train.GradientDescentOptimizer(learning_rate=learning_rate/batch_size).minimize(loss)
+        rewards=np.ndarray(shape=(batch_size,), dtype=np.float32)
+        from utils.input_data_util import OnlinePositionActionUtil
+        paUtil=OnlinePositionActionUtil(batch_size=batch_size, boardsize=boardsize)
+        saver=tf.train.Saver(max_to_keep=50)
+
+        sess=tf.Session()
+        saver.restore(sess, saved_checkpoint)
+
+        from commons.definitions2 import BuildInputTensor
+        self.input_tensor_builder = BuildInputTensor(boardsize)
+        self.input_tensor = np.ndarray(dtype=np.float32, shape=(1, boardsize + 2, boardsize + 2, INPUT_DEPTH))
+        self.input_tensor.fill(0)
+        ite=0
+
+        if not is_adversarial_pg:
+            outputname='pg.model'+repr(boardsize)+'x'+repr(boardsize)
+        else:
+            outputname = 'pg.adversarial.model'+repr(boardsize)+'x'+repr(boardsize)
+        while ite<max_iterations:
+            print('iteration ',ite)
+            intmoveseqlist, resultlist=self.playbatchgame(sess, output_logits, boardsize, batch_size,
+                                                          self.x_node_dict[boardsize], topk=topk, is_adversarial_pg=is_adversarial_pg)
+            positionactionlist=[]
+            for i in range(len(intmoveseqlist)):
+                positionactionlist.append(intmoveseqlist[i])
+                rewards[i]=resultlist[i]*1.0/len(intmoveseqlist[i])
+
+            paUtil.prepare_next_batch(positionactionlist)
+            sess.run(optimizer, feed_dict={self.x_node_dict[boardsize]:paUtil.batch_positions,
+                                           self.y_star:paUtil.batch_labels, rewards_node:rewards})
+            ite +=1
+            if ite%10 == 0:
+                saver.save(sess, os.path.join(output_dir, outputname), global_step=ite)
+        saver.save(sess, os.path.join(output_dir, outputname), global_step=ite)
+        sess.close()
+        print('Done PG training')
 
     '''
     needs to indicate what boardsize will be training on.
@@ -177,25 +336,47 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--max_train_step', type=int, default=500)
-    parser.add_argument('--batch_train_size', type=int, default=128)
-    parser.add_argument('--input_file', type=str, default='')
-    parser.add_argument('--output_dir', type=str, default='/tmp/saved_checkpoint/')
+    parser.add_argument('--max_train_step', type=int, default=200, help='maximum training steps or iterations')
+    parser.add_argument('--batch_train_size', type=int, default=128, help='batch size, default 128')
+    parser.add_argument('--input_file', type=str, default='', help='input dataset for train or test')
+    parser.add_argument('--output_dir', type=str, default='/tmp/saved_checkpoint/', help='where to save logs')
 
     parser.add_argument('--resume_train', action='store_true', default=False)
-    parser.add_argument('--previous_checkpoint', type=str, default='')
+    parser.add_argument('--previous_checkpoint', type=str, default='', help='path to saved model')
 
-    parser.add_argument('--boardsize', type=int, default=9)
-    parser.add_argument('--n_hidden_layer', type=int, default=6)
+    parser.add_argument('--boardsize', type=int, default=9, help='default 9')
+    parser.add_argument('--n_hidden_layer', type=int, default=6, help='default 6')
 
-    parser.add_argument('--evaluate', action='store_true', default=False)
-    parser.add_argument('--topk', type=int, default=1)
+    parser.add_argument('--evaluate', action='store_true', default=False, help='binary value, default False')
+    parser.add_argument('--topk', type=int, default=1, help='default 1')
+
+    parser.add_argument('--policy_gradient', action='store_true', default=False, help='binary value, default False')
+    parser.add_argument('--learning_rate', type=float, default=0.003, help='policy gradient learning rate')
+    parser.add_argument('--policy_gradient_adversarial', action='store_true', default=False, help='binary value, default False')
     args = parser.parse_args()
 
     if args.evaluate:
         cnn = PlainCNN(n_hiddenLayers=args.n_hidden_layer)
         print('Testing')
         cnn.evaluate_on_test_data(args.input_file, boardsize=args.boardsize, batch_size=100, saved_checkpoint=args.previous_checkpoint, topk=args.topk)
+        exit(0)
+
+    hyperparameter = {}
+    hyperparameter['batch_size'] = args.batch_train_size
+    hyperparameter['learning_rate'] = args.learning_rate
+    hyperparameter['max_iteration'] = args.max_train_step
+    hyperparameter['topk'] = args.topk
+    if args.policy_gradient:
+        cnn = PlainCNN(n_hiddenLayers=args.n_hidden_layer)
+        print('Doing policy gradient')
+        cnn.policygradient(args.boardsize, args.previous_checkpoint, args.output_dir, hyperparameter)
+        exit(0)
+
+    if args.policy_gradient_adversarial:
+        hyperparameter['topk']=5
+        cnn = PlainCNN(n_hiddenLayers=args.n_hidden_layer)
+        print('Doing adversarial policy gradient')
+        cnn.policygradient(args.boardsize, args.previous_checkpoint, args.output_dir, hyperparameter,is_adversarial_pg=True)
         exit(0)
 
     if not os.path.isfile(args.input_file):

@@ -2,6 +2,67 @@ import numpy as np
 from commons.definitions2 import INPUT_DEPTH, BuildInputTensor
 
 
+class OnlinePositionActionUtil(object):
+    '''
+    input data should be in the same format as supervised learning
+    '''
+    def __init__(self, batch_size, boardsize=9):
+        self.boardsize=boardsize
+        self.batchsize=batch_size
+        self.enableRandomFlip=True
+        INPUT_WIDTH=self.boardsize+2
+        self.batch_positions = np.ndarray(shape=(batch_size, INPUT_WIDTH, INPUT_WIDTH, INPUT_DEPTH), dtype=np.int32)
+        self.batch_labels = np.ndarray(shape=(batch_size,), dtype=np.int16)
+        self.tensorMakeUtil = BuildInputTensor(boardsize=self.boardsize)
+        pass
+
+    '''
+    One moveseq is a (s,a) pair, e.g., A3 B4 C5, in str format
+    '''
+    def prepare_next_batch(self, intmoveseq_list):
+        self.batch_positions.fill(0)
+        self.batch_labels.fill(-1)
+        next_epoch = False
+        # sum_value=0.0
+        for i in range(self.batchsize):
+            j=i
+            if j>=len(intmoveseq_list):
+                j=0
+                next_epoch = True
+            moveseq = intmoveseq_list[j]
+            self._build_batch_at(i, moveseq)
+
+        return next_epoch
+
+
+    def _build_batch_at(self, kth, moveseq):
+
+        intMove = moveseq[-1]
+        intgamestate = moveseq[0:-1]
+        if self.enableRandomFlip and np.random.random() < 0.5:
+            # intMove=MoveConvertUtil.rotateMove180(intMove)
+            intMove = self._rotate_180(intMove, self.boardsize)
+            for i in range(len(intgamestate)):
+                # intgamestate[i]=MoveConvertUtil.rotateMove180(intgamestate[i])
+                intgamestate[i] = self._rotate_180(intgamestate[i], self.boardsize)
+        # print(intgamestate, intMove)
+        self.tensorMakeUtil.makeTensorInBatch(self.batch_positions, self.batch_labels, kth, intgamestate, intMove)
+        # print('kth=',kth, self.batch_positions[kth])
+        # self.print_feature_plane(kth, 4)
+
+
+    def _toIntMove(self, raw):
+        x = ord(raw[2].lower()) - ord('a')
+        y = int(raw[3:-1]) - 1
+        assert (0 <= x < self.boardsize and 0 <= y < self.boardsize)
+        imove = x * self.boardsize + y
+        return imove
+
+
+    def _rotate_180(self, int_move, boardsize):
+        assert (0 <= int_move < boardsize ** 2)
+        return boardsize ** 2 - 1 - int_move
+
 class PositionActionDataReader(object):
     '''
     input depth = INPUT_DEPTH,

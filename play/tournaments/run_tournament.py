@@ -56,6 +56,7 @@ def mohex_settings(agent):
 
 def wolve_settings(agent):
     agent.sendCommand('param_wolve max_depth 1')
+    agent.sendCommand('param_wolve min_depth 1')
     #agent.sendCommand('param_wolve max_time 1')
     pass
 
@@ -83,16 +84,20 @@ if __name__ == "__main__":
     white_win_count=0
 
     for i in range(num_games):
-        black_player.sendCommand('boardsize '+repr(args.boardsize))
-        white_player.sendCommand("boardsize " + repr(args.boardsize))
         if 'mohex' in args.exe_black:
+            black_player.reconnect()
             mohex_settings(black_player)
         if 'mohex' in args.exe_white:
+            white_player.reconnect()
             mohex_settings(white_player)
         if 'wolve' in args.exe_black:
+            black_player.reconnect()
             wolve_settings(black_player)
         if 'wolve' in args.exe_white:
+            white_player.reconnect()
             wolve_settings(white_player)
+        black_player.sendCommand('boardsize ' + repr(args.boardsize))
+        white_player.sendCommand("boardsize " + repr(args.boardsize))
         if not opening_moves:
             print('empty board opening')
             winner =run_single_match(black_player, white_player, boardsize=args.boardsize, opening='', verbose=False)
