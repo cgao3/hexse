@@ -47,6 +47,7 @@ class PlainCNN(object):
         self.filter_size = 3
         # 3x3 filter
         self.resue = False
+        self.trainable_variables=[]
 
     def build_graph(self):
         self.resue=False
@@ -66,8 +67,11 @@ class PlainCNN(object):
             init_stddev = math.sqrt(2.0 / (self.num_filters * self.filter_size * self.filter_size))
             w = tf.get_variable(name="weight", shape=[self.filter_size, self.filter_size, in_depth, out_depth],
                                 initializer=tf.random_normal_initializer(mean=0.0, stddev=init_stddev))
+            self.trainable_variables.append(w)
             b = tf.get_variable(name="bias", shape=[out_depth], initializer=tf.constant_initializer(0.0))
+            self.trainable_variables.append(b)
             h = tf.nn.conv2d(feature_in, w, strides=[1, 1, 1, 1], padding=padding_method) + b
+
             return tf.nn.relu(h)
 
     def _one_by_one_convolve_out(self, scope_name, feature_in, in_depth, output_boardsize, out_name):
@@ -76,6 +80,7 @@ class PlainCNN(object):
             init_stddev = math.sqrt(2.0 / in_depth)
             w = tf.get_variable(name='weight', shape=[1, 1, in_depth, 1],
                                 initializer=tf.random_normal_initializer(mean=0.0, stddev=init_stddev))
+            self.trainable_variables.append(w)
             #position_bias = tf.get_variable(name='position_bias', shape=[output_boardsize*output_boardsize], initializer=tf.constant_initializer(0.0))
             h = tf.nn.conv2d(feature_in, w, strides=[1, 1, 1, 1], padding='SAME')
 
