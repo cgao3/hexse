@@ -173,7 +173,7 @@ class PolicyGradient(object):
                         batch_state_no=0
                         positionactionlist=[]
             ite += 1
-            if ite % 10 == 0:
+            if ite % 1 == 0:
                 self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
                 if is_alphago_like:
                     l2 = [f for f in os.listdir(output_dir) if f.endswith(".meta")]
@@ -183,7 +183,7 @@ class PolicyGradient(object):
                     print('selected model:', selected_model)
                     self.aux_saver.restore(self.other_sess, selected_model)
                     self.input_tensor.fill(0)
-                    print(self.sess.run(self.aux_logits, feed_dict={self.cnn2.x_node_dict[self.boardsize]: self.input_tensor}))
+                    print(self.other_sess.run(self.aux_logits, feed_dict={self.cnn2.x_node_dict[self.boardsize]: self.input_tensor}))
         self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
         self.sess.close()
         print('Done PG training')
@@ -219,7 +219,7 @@ class PolicyGradient(object):
             for i in range(len(intgamelist)):
                 intgame = intgamelist[i]
                 for j in range(2, len(intgame)-1):
-                    j = np.random.randint(2, len(intgame) - 1)
+                    #j = np.random.randint(2, len(intgame) - 1)
                     current_state=intgame[:j]
                     cnt_k_count=0
                     min_reward=-resultlist[i] if len(current_state)%2==0 else resultlist[i]
@@ -238,10 +238,10 @@ class PolicyGradient(object):
                         self.sess.run(optimizer, feed_dict={self.cnn.x_node_dict[self.boardsize]: paUtil.batch_positions,
                                                             self.cnn.y_star: paUtil.batch_labels, rewards_node: rewards})
                         batch_state_no = 0
-                        positionactionlist = []
-                    break
+                        positionactionlist[:]=[]
+                    #break
             ite += 1
-            if ite % 10 == 0:
+            if ite % 1 == 0:
                 self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
         self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
         self.sess.close()
@@ -265,7 +265,7 @@ if __name__ == "__main__":
     parser.add_argument('--topk', type=int, default=1, help='default 1')
 
     parser.add_argument('--alphago_like', action='store_true', default=False, help='binary value, default False')
-    parser.add_argument('--step_size', type=float, default=0.001, help='policy gradient step_size (learning rate)')
+    parser.add_argument('--step_size', type=float, default=0.01, help='policy gradient step_size (learning rate)')
     parser.add_argument('--adversarial', action='store_true', default=False, help='binary value, default False')
     args = parser.parse_args()
 
