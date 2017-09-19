@@ -220,19 +220,17 @@ class PolicyGradient(object):
                 intgame = intgamelist[i]
                 for j in range(2, len(intgame)-1):
                     j = np.random.randint(2, len(intgame) - 1)
-                    onestate=intgame[:j]
+                    current_state=intgame[:j]
                     cnt_k_count=0
-                    min_reward=10.0
-                    while cnt_k_count<topk:
-                        current_state=onestate[:]
-                        played_game, result_relative_to_black=self.playonegame(current_state, self.this_logits, self.cnn.x_node_dict[self.boardsize],
+                    min_reward=-resultlist[i] if len(current_state)%2==0 else resultlist[i]
+                    while cnt_k_count < topk:
+                        played_game, relative_to_black=self.playonegame(current_state, self.this_logits, self.cnn.x_node_dict[self.boardsize],
                                          self.this_logits, self.cnn.x_node_dict[self.boardsize], self.sess, self.sess)
-                        real_result =-result_relative_to_black if len(played_game)%2==0 else result_relative_to_black
-                        #print('reward', cnt_k_count, real_result)
+                        real_result =-relative_to_black if len(current_state)%2==0 else relative_to_black
                         min_reward=min(real_result, min_reward)
                         cnt_k_count +=1
 
-                    positionactionlist.append(onestate)
+                    positionactionlist.append(current_state)
                     rewards[batch_state_no] = min_reward
                     batch_state_no += 1
                     if batch_state_no == batch_size:
@@ -243,10 +241,11 @@ class PolicyGradient(object):
                         positionactionlist = []
                     break
             ite += 1
-            if ite % 1 == 0:
+            if ite % 10 == 0:
                 self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
         self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
         self.sess.close()
+        self.other_sess.close()
         print('Done adversarial PG training')
 
 
