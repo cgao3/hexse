@@ -37,7 +37,7 @@ class PolicyGradient(object):
             self.this_logits=self.cnn.out_logits_dict[self.boardsize]
             self.sess=tf.Session(graph=self.g)
 
-            self.saver = tf.train.Saver(max_to_keep=50)
+            self.saver = tf.train.Saver(max_to_keep=500)
             self.saver.restore(self.sess, previous_checkpoint)
 
         print(self.sess.run(self.this_logits, feed_dict={self.cnn.x_node_dict[boardsize]: self.input_tensor}))
@@ -100,7 +100,7 @@ class PolicyGradient(object):
             turn = HexColor.EMPTY - turn
 
         reward = 1.0/len(intgamestate) if game_status == HexColor.BLACK else -1.0/len(intgamestate)
-        #print('played one game')
+        #print('played one game')other_sess
         return intgamestate, reward
 
     '''
@@ -218,7 +218,7 @@ class PolicyGradient(object):
             batch_state_no = 0
             for i in range(len(intgamelist)):
                 intgame = intgamelist[i]
-                for j in range(2, len(intgame)-1):
+                for j in range(2, len(intgame)):
                     #j = np.random.randint(2, len(intgame) - 1)
                     current_state=intgame[:j]
                     cnt_k_count=0
@@ -254,7 +254,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_train_step', type=int, default=200, help='maximum training steps or iterations')
-    parser.add_argument('--batch_train_size', type=int, default=128, help='batch size, default 128')
+    parser.add_argument('--batch_train_size', type=int, default=128, help='batch size, default 123')
     parser.add_argument('--output_dir', type=str, default='/tmp/saved_checkpoint/', help='where to save logs')
 
     parser.add_argument('--previous_checkpoint', type=str, default='', help='path to saved model')
