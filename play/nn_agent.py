@@ -135,6 +135,9 @@ def softmax_selection(logits, empty_points, temperature=1.0):
         if (sum_v >= v):
             action = i
             break
+    assert len(prob)>0
+    if action == None:
+        action = np.random.randint(0, len(prob))
     ret = empty_points[action]
     return ret
 

@@ -114,7 +114,8 @@ class PolicyGradient(object):
         batch_cnt = 0
         while batch_cnt < batchsize:
             self.input_tensor.fill(0)
-            intgamestate = []
+            opening=np.random.randint(0,self.boardsize*self.boardsize)
+            intgamestate = [opening]
             intmoveseq, gameresult=self.playonegame(starting_intgamestate=intgamestate, thislogits=thislogits,
                              thisxnode=thisxnode, otherlogits=otherlogits, otherxnode=otherxnode, thisSess=thisSess, otherSess=otherSess)
             intgames.append(intmoveseq)
@@ -139,8 +140,6 @@ class PolicyGradient(object):
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
-        rewards = np.ndarray(shape=(batch_size,), dtype=np.float32)
-        paUtil = OnlinePositionActionUtil(batch_size=batch_size, boardsize=self.boardsize)
 
         ite = 0
         outputname = 'naive_pg.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -157,36 +156,51 @@ class PolicyGradient(object):
                                                              self.cnn.x_node_dict[self.boardsize], self.sess, self.sess)
 
             positionactionlist = []
-            batch_state_no=0
+            actionrewardlist=[]
             for i in range(len(intgamelist)):
                 intgame=intgamelist[i]
                 for j in range(2,len(intgame)):
-                    onestate=intgame[:j]
-                    relative_reward=-resultlist[i] if len(onestate)%2 == 0 else resultlist[i]
-                    positionactionlist.append(onestate)
-                    rewards[batch_state_no]=relative_reward
-                    batch_state_no +=1
-                    if batch_state_no == batch_size:
-                        paUtil.prepare_next_batch(positionactionlist)
-                        self.sess.run(optimizer, feed_dict={self.cnn.x_node_dict[self.boardsize]: paUtil.batch_positions,
-                                           self.cnn.y_star: paUtil.batch_labels, rewards_node: rewards})
-                        batch_state_no=0
-                        positionactionlist=[]
+                    s_a=intgame[:j]
+                    relative_reward=-resultlist[i] if len(s_a)%2 == 0 else resultlist[i]
+                    positionactionlist.append(s_a)
+                    #rewards[batch_state_no]=relative_reward
+                    actionrewardlist.append(relative_reward)
+            
+            print(len(actionrewardlist),'states in a gamebatch')
+            paUtil = OnlinePositionActionUtil(batch_size=len(positionactionlist), boardsize=self.boardsize)
+            paUtil.prepare_next_batch(positionactionlist)
+            self.sess.run(optimizer, feed_dict={self.cnn.x_node_dict[self.boardsize]: paUtil.batch_positions,
+                                           self.cnn.y_star: paUtil.batch_labels, rewards_node: actionrewardlist})
             ite += 1
-            if ite % 1 == 0:
+            if ite % 10 == 0:
                 self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
-                if is_alphago_like:
-                    l2 = [f for f in os.listdir(output_dir) if f.endswith(".meta")]
-                    selected_model=np.random.choice(l2)
-                    selected_model= selected_model[0:-len('.meta')]
-                    selected_model=os.path.join(output_dir, selected_model)
-                    print('selected model:', selected_model)
-                    self.aux_saver.restore(self.other_sess, selected_model)
-                    self.input_tensor.fill(0)
-                    print(self.other_sess.run(self.aux_logits, feed_dict={self.cnn2.x_node_dict[self.boardsize]: self.input_tensor}))
+            if is_alphago_like:
+                l2 = [f for f in os.listdir(output_dir) if f.endswith(".meta")]
+                if len(l2) == 0:
+                    continue
+                if np.random.random()<1.0/len(l2):
+                    continue
+                selected_model=np.random.choice(l2)
+                selected_model= selected_model[0:-len('.meta')]
+                selected_model=os.path.join(output_dir, selected_model)
+                print('selected model:', selected_model)
+                self.aux_saver.restore(self.other_sess, selected_model)
+                self.input_tensor.fill(0)
+                print(self.other_sess.run(self.aux_logits, feed_dict={self.cnn2.x_node_dict[self.boardsize]: self.input_tensor}))
         self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
         self.sess.close()
         print('Done PG training')
+
+    def to_tenary_string(self, intgamestate):
+        s=['0']*(self.boardsize*self.boardsize)
+        turn= HexColor.BLACK
+        for intmove in intgamestate:
+            if turn == HexColor.BLACK:
+                s[intmove]='1'
+            else:
+                s[intmove]='2'
+            turn =HexColor.EMPTY - turn
+        return ''.join(s)
 
     '''
     Adversarial Policy gradient, three versions
@@ -204,8 +218,6 @@ class PolicyGradient(object):
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
-            rewards = np.ndarray(shape=(batch_size,), dtype=np.float32)
-        paUtil = OnlinePositionActionUtil(batch_size=batch_size, boardsize=self.boardsize)
 
         ite = 0
         outputname = 'adversarial_pg.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -214,32 +226,34 @@ class PolicyGradient(object):
             #use exploratory policy to sample state
             intgamelist, resultlist = self.playbatchgame(batch_size, self.this_logits, self.cnn.x_node_dict[self.boardsize],
                                                              self.this_logits, self.cnn.x_node_dict[self.boardsize], self.sess, self.sess)
-            positionactionlist = []
-            batch_state_no = 0
-            for i in range(len(intgamelist)):
-                intgame = intgamelist[i]
-                for j in range(2, len(intgame)):
-                    #j = np.random.randint(2, len(intgame) - 1)
-                    current_state=intgame[:j]
-                    cnt_k_count=0
-                    min_reward=-resultlist[i] if len(current_state)%2==0 else resultlist[i]
-                    while cnt_k_count < topk:
-                        played_game, relative_to_black=self.playonegame(current_state, self.this_logits, self.cnn.x_node_dict[self.boardsize],
-                                         self.this_logits, self.cnn.x_node_dict[self.boardsize], self.sess, self.sess)
-                        real_result =-relative_to_black if len(current_state)%2==0 else relative_to_black
-                        min_reward=min(real_result, min_reward)
-                        cnt_k_count +=1
+            s_a_dict={}
+            cnt_all=0;
+            cnt_dup=0;
+            for i,g in enumerate(intgamelist):
+                for k in range(2, len(g)):
+                    cnt_all +=1
+                    current_state=g[:k]
+                    reward=-resultlist[i] if len(current_state)%2==0 else resultlist[i]
+                    str_state=self.to_tenary_string(current_state)
+                    if str_state in s_a_dict:
+                        old_reward=s_a_dict[str_state][0]
+                        if reward<old_reward:
+                            s_a_dict[str_state]=(reward,i,k)
+                        cnt_dup +=1
+                    else:
+                        s_a_dict[str_state]=(reward,i,k)
 
-                    positionactionlist.append(current_state)
-                    rewards[batch_state_no] = min_reward
-                    batch_state_no += 1
-                    if batch_state_no == batch_size:
-                        paUtil.prepare_next_batch(positionactionlist)
-                        self.sess.run(optimizer, feed_dict={self.cnn.x_node_dict[self.boardsize]: paUtil.batch_positions,
-                                                            self.cnn.y_star: paUtil.batch_labels, rewards_node: rewards})
-                        batch_state_no = 0
-                        positionactionlist[:]=[]
-                    #break
+            print(cnt_all,'states in a gamebatch', cnt_dup, 'appear more than once')
+            positionactionlist = []
+            actionrewardlist=[]
+            for str_state in s_a_dict:
+                reward, i, k = s_a_dict[str_state]
+                positionactionlist.append(intgamelist[i][:k])
+                actionrewardlist.append(reward)
+
+            paUtil = OnlinePositionActionUtil(batch_size=len(positionactionlist), boardsize=self.boardsize)
+            paUtil.prepare_next_batch(positionactionlist)
+            self.sess.run(optimizer, feed_dict={self.cnn.x_node_dict[self.boardsize]: paUtil.batch_positions, self.cnn.y_star: paUtil.batch_labels, rewards_node: actionrewardlist})
             ite += 1
             if ite % 1 == 0:
                 self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
@@ -252,14 +266,14 @@ class PolicyGradient(object):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--max_train_step', type=int, default=200, help='maximum training steps or iterations')
-    parser.add_argument('--batch_train_size', type=int, default=128, help='batch size, default 123')
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--max_train_step', type=int, default=400, help='maximum training steps or iterations')
+    parser.add_argument('--batch_train_size', type=int, default=128, help='game batch size')
     parser.add_argument('--output_dir', type=str, default='/tmp/saved_checkpoint/', help='where to save logs')
 
     parser.add_argument('--previous_checkpoint', type=str, default='', help='path to saved model')
 
-    parser.add_argument('--boardsize', type=int, default=9, help='default 9')
+    parser.add_argument('--boardsize', type=int, default=9, help='boardsize')
     parser.add_argument('--n_hidden_layer', type=int, default=6, help='default 6')
 
     parser.add_argument('--topk', type=int, default=1, help='default 1')

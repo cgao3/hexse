@@ -505,7 +505,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--max_train_step', type=int, default=500, help='maximum training steps or iterations')
+    parser.add_argument('--max_train_step', type=int, default=200, help='maximum training steps or iterations')
     parser.add_argument('--batch_train_size', type=int, default=243, help='batch size, default boardsize*boardsize*3')
     parser.add_argument('--output_dir', type=str, default='/tmp/saved_checkpoint/', help='where to save logs')
 
