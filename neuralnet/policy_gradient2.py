@@ -169,13 +169,13 @@ class PolicyGradient(object):
         opening_int_move=0
         while batch_cnt < batchsize:
             self.input_tensor.fill(0)
+            opening_int_move=np.random.randint(0, self.boardsize*self.boardsize)
             intgamestate = [opening_int_move]
             intmoveseq, gameresult=self.playonegame(starting_intgamestate=intgamestate, thislogits=thislogits,
                              thisxnode=thisxnode, otherlogits=otherlogits, otherxnode=otherxnode, thisSess=thisSess, otherSess=otherSess)
             intgames.append(intmoveseq)
             gameresultlist.append(gameresult)
             batch_cnt += 1
-            opening_int_move=batch_cnt%(self.boardsize*self.boardsize)
         print('played a batch of games')
         return intgames, gameresultlist
 
@@ -505,8 +505,8 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--max_train_step', type=int, default=200, help='maximum training steps or iterations')
-    parser.add_argument('--batch_train_size', type=int, default=243, help='batch size, default boardsize*boardsize*3')
+    parser.add_argument('--max_train_step', type=int, default=400, help='maximum training steps or iterations')
+    parser.add_argument('--batch_train_size', type=int, default=128, help='batch size, default boardsize*boardsize*3')
     parser.add_argument('--output_dir', type=str, default='/tmp/saved_checkpoint/', help='where to save logs')
 
     parser.add_argument('--previous_checkpoint', type=str, default='', help='path to saved model')
@@ -514,7 +514,7 @@ if __name__ == "__main__":
     parser.add_argument('--boardsize', type=int, default=9, help='default 9')
     parser.add_argument('--n_hidden_layer', type=int, default=6, help='default 6')
 
-    parser.add_argument('--topk', type=int, default=3, help='default 3')
+    parser.add_argument('--topk', type=int, default=5, help='k')
 
     parser.add_argument('--alphago_like', action='store_true', default=False, help='binary value, default False')
     parser.add_argument('--step_size', type=float, default=0.01, help='policy gradient step_size (learning rate)')
