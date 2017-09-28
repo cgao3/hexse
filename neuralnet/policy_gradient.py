@@ -99,7 +99,7 @@ class PolicyGradient(object):
             empty_points.remove(selected_int_move)
             turn = HexColor.EMPTY - turn
 
-        reward = 1.0/len(intgamestate) if game_status == HexColor.BLACK else -1.0/len(intgamestate)
+        reward = 0.5 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -(0.5 + 1.0/len(intgamestate))
         #print('played one game')other_sess
         return intgamestate, reward
 
@@ -227,8 +227,8 @@ class PolicyGradient(object):
             intgamelist, resultlist = self.playbatchgame(batch_size, self.this_logits, self.cnn.x_node_dict[self.boardsize],
                                                              self.this_logits, self.cnn.x_node_dict[self.boardsize], self.sess, self.sess)
             s_a_dict={}
-            cnt_all=0;
-            cnt_dup=0;
+            cnt_all=0
+            cnt_dup=0
             for i,g in enumerate(intgamelist):
                 for k in range(2, len(g)):
                     cnt_all +=1

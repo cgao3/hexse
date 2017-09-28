@@ -18,6 +18,7 @@ from commons.definitions2 import BuildInputTensor
 Monte-carlo policy gradient.
 1. vanially pg
 2. adversairal pg
+select only one s_a from a game
 '''
 
 class PolicyGradient(object):
@@ -152,7 +153,7 @@ class PolicyGradient(object):
             empty_points.remove(selected_int_move)
             turn = HexColor.EMPTY - turn
 
-        reward = 0.5 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -(1.0/len(intgamestate) + 0.5)
+        reward = 0.5 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -1.0/len(intgamestate) - 0.5
         #print('played one game')
         return intgamestate, reward
 
@@ -292,23 +293,21 @@ class PolicyGradient(object):
             for i in range(batch_size):
                 intgame=intgamelist[i]
                 length=len(intgame)-1
-                j1=np.random.choice(range(2, length, 2))
-                j2=np.random.choice(range(3, length, 2))
-                for j in [j1, j2]:
-                    s_a=intgame[:j]
-                    positionactionlist.append(s_a)
-                    r1 = -resultlist[i] if len(s_a)%2==0 else resultlist[i]
-                    minR=r1
-                    for cnt in range(topk):
-                        if is_alphago_like:
-                            ret_gamestate, reward=self.playonegame(intgame[:j], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.aux_logits, self.cnn2.x_node_dict[self.boardsize], self.sess, self.other_sess)
-                        else:
-                            ret_gamestate, reward=self.playonegame(intgame[:j], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.sess, self.sess)
-                        if len(s_a)%2==0:
-                            reward = -reward
-                        minR=min(minR, reward)
+                j=np.random.randint(2, length)
+                s_a=intgame[:j]
+                positionactionlist.append(s_a)
+                r1 = -resultlist[i] if len(s_a)%2==0 else resultlist[i]
+                minR=r1
+                for cnt in range(topk):
+                    if is_alphago_like:
+                        ret_gamestate, reward=self.playonegame(intgame[:j], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.aux_logits, self.cnn2.x_node_dict[self.boardsize], self.sess, self.other_sess)
+                    else:
+                        ret_gamestate, reward=self.playonegame(intgame[:j], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.sess, self.sess)
+                    if len(s_a)%2==0:
+                        reward = -reward
+                    minR=min(minR, reward)
                         #rewards[i] = minR
-                    actionrewardlist.append(minR)
+                actionrewardlist.append(minR)
             assert len(actionrewardlist) == len(positionactionlist)
             paUtil = OnlinePositionActionUtil(batch_size=len(actionrewardlist), boardsize=self.boardsize)
             paUtil.prepare_next_batch(positionactionlist)
@@ -373,25 +372,22 @@ class PolicyGradient(object):
             for i in range(batch_size):
                 intgame = intgamelist[i]
                 length = len(intgame) - 1
-                j1 = np.random.choice(range(2, length, 2))
-                j2 = np.random.choice(range(3, length, 2))
-
-                for j in [j1, j2]:
-                    s_a = intgame[:j]
-                    positionactionlist.append(s_a)
-                    r1 = -resultlist[i] if len(s_a) % 2 == 0 else resultlist[i]
-                    minR = r1
-                    for cnt in range(topk):
-                        if is_alphago_like:
-                            ret_gamestate, reward = self.play_deterministic_game(intgame[:j], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.aux_logits,
-                                                                     self.cnn2.x_node_dict[self.boardsize], self.sess, self.other_sess)
-                        else:
-                            ret_gamestate, reward = self.play_deterministic_game(intgame[:j], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.this_logits,
+                j=np.random.randint(2,length)
+                s_a = intgame[:j]
+                positionactionlist.append(s_a)
+                r1 = -resultlist[i] if len(s_a) % 2 == 0 else resultlist[i]
+                minR = r1
+                for cnt in range(topk):
+                    if is_alphago_like:
+                        ret_gamestate, reward = self.play_deterministic_game(intgame[:j], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.aux_logits,
+                                                                 self.cnn2.x_node_dict[self.boardsize], self.sess, self.other_sess)
+                    else:
+                        ret_gamestate, reward = self.play_deterministic_game(intgame[:j], self.this_logits, self.cnn.x_node_dict[self.boardsize], self.this_logits,
                                                                      self.cnn.x_node_dict[self.boardsize], self.sess, self.sess)
-                        if len(s_a) % 2 == 0:
-                            reward = -reward
-                        minR = min(minR, reward)
-                    actionrewardlist.append(minR)
+                    if len(s_a) % 2 == 0:
+                        reward = -reward
+                    minR = min(minR, reward)
+                actionrewardlist.append(minR)
             assert len(actionrewardlist) == len(positionactionlist)
             paUtil = OnlinePositionActionUtil(batch_size=len(actionrewardlist), boardsize=self.boardsize)
             paUtil.prepare_next_batch(positionactionlist)
@@ -449,39 +445,36 @@ class PolicyGradient(object):
             for i in range(batch_size):
                 intgame = intgamelist[i]
                 length = len(intgame) - 1
-                j1 = np.random.choice(range(2, length, 2))
-                j2 = np.random.choice(range(3, length, 2))
-
-                for j in [j1, j2]:
-                    s_a = intgame[:j]
-                    positionactionlist.append(s_a)
-                    r1 = -resultlist[i] if len(s_a) % 2 == 0 else resultlist[i]
-                    minR = r1
-                    sprime=intgame[:j]
-                    self.input_tensor.fill(0)
-                    self.input_tensor_builder.set_position_tensors_in_batch(self.input_tensor, 0, sprime)
-                    logits_score = self.sess.run(self.this_logits, feed_dict={self.cnn.x_node_dict[self.boardsize]: self.input_tensor})
-                    logits_score = np.squeeze(logits_score)
-                    top_points = np.argpartition(-logits_score, kth=topk)[:topk]
-                    top_points = top_points.tolist()
-                    for pp in top_points:
-                        if pp in sprime:
-                            top_points.remove(pp)
-                    for top_next_action in top_points:
-                        sprime.append(top_next_action)
-                        if is_alphago_like:
-                            ret_gamestate, reward = self.playonegame(sprime, self.this_logits, self.cnn.x_node_dict[self.boardsize],
-                                                                                 self.aux_logits,
+                j=np.random.randint(2,length)
+                s_a = intgame[:j]
+                positionactionlist.append(s_a)
+                r1 = -resultlist[i] if len(s_a) % 2 == 0 else resultlist[i]
+                minR = r1
+                sprime=intgame[:j]
+                self.input_tensor.fill(0)
+                self.input_tensor_builder.set_position_tensors_in_batch(self.input_tensor, 0, sprime)
+                logits_score = self.sess.run(self.this_logits, feed_dict={self.cnn.x_node_dict[self.boardsize]: self.input_tensor})
+                logits_score = np.squeeze(logits_score)
+                top_points = np.argpartition(-logits_score, kth=topk)[:topk]
+                top_points = top_points.tolist()
+                for pp in top_points:
+                    if pp in sprime:
+                        top_points.remove(pp)
+                for top_next_action in top_points:
+                    sprime.append(top_next_action)
+                    if is_alphago_like:
+                        ret_gamestate, reward = self.playonegame(sprime, self.this_logits, self.cnn.x_node_dict[self.boardsize],
+                                                                         self.aux_logits,
                                                                                  self.cnn2.x_node_dict[self.boardsize], self.sess, self.other_sess)
-                        else:
-                            ret_gamestate, reward = self.playonegame(sprime, self.this_logits, self.cnn.x_node_dict[self.boardsize],
+                    else:
+                        ret_gamestate, reward = self.playonegame(sprime, self.this_logits, self.cnn.x_node_dict[self.boardsize],
                                                                                  self.this_logits,
                                                                                  self.cnn.x_node_dict[self.boardsize], self.sess, self.sess)
-                        if len(s_a) % 2 == 0:
-                            reward = -reward
-                        minR = min(minR, reward)
-                        sprime.remove(top_next_action)
-                    actionrewardlist.append(minR)
+                    if len(s_a) % 2 == 0:
+                        reward = -reward
+                    minR = min(minR, reward)
+                    sprime.remove(top_next_action)
+                actionrewardlist.append(minR)
             assert len(actionrewardlist) == len(positionactionlist)
             paUtil = OnlinePositionActionUtil(batch_size=len(actionrewardlist), boardsize=self.boardsize)
             paUtil.prepare_next_batch(positionactionlist)
