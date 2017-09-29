@@ -100,7 +100,7 @@ class PolicyGradient(object):
             empty_points.remove(selected_int_move)
             turn = HexColor.EMPTY - turn
 
-        reward = 0.5 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -(1.0/len(intgamestate) + 0.5)
+        reward = 0.25 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -(0.25+ 1.0/len(intgamestate))
         #print('played one game')
         return intgamestate, reward
 
@@ -152,7 +152,7 @@ class PolicyGradient(object):
             empty_points.remove(selected_int_move)
             turn = HexColor.EMPTY - turn
 
-        reward = 0.5 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -(1.0/len(intgamestate) + 0.5)
+        reward = 0.25 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -(0.25 + 1.0/len(intgamestate))
         #print('played one game')
         return intgamestate, reward
 

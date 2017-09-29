@@ -99,30 +99,92 @@ class PolicyGradient(object):
             empty_points.remove(selected_int_move)
             turn = HexColor.EMPTY - turn
 
-        reward = 0.5 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -(0.5 + 1.0/len(intgamestate))
+        reward = 0.25 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -1.0/len(intgamestate) -0.25
         #print('played one game')other_sess
         return intgamestate, reward
+
+    def play_deterministic_game(self, starting_intgamestate, thislogits, thisxnode, otherlogits, otherxnode, thisSess, otherSess):
+        self.input_tensor.fill(0)
+        black_groups = unionfind()
+        white_groups = unionfind()
+        turn = HexColor.BLACK
+        intgamestate = []
+        for imove in starting_intgamestate:
+            black_groups, white_groups = GameCheck.updateUF(intgamestate, black_groups, white_groups,
+                                                            imove, turn, self.boardsize)
+            turn = HexColor.EMPTY - turn
+            intgamestate.append(imove)
+
+        game_status = GameCheck.winner(black_groups, white_groups)
+        empty_points = []
+        for i in range(self.boardsize * self.boardsize):
+            if i not in intgamestate:
+                empty_points.append(i)
+        aux_player_color=np.random.randint(HexColor.BLACK, HexColor.EMPTY)
+        assert aux_player_color == 1 or aux_player_color == 2
+        deterministic_player=np.random.randint(HexColor.BLACK, HexColor.EMPTY)
+        while game_status == HexColor.EMPTY:
+            self.input_tensor.fill(0)
+            self.input_tensor_builder.set_position_tensors_in_batch(self.input_tensor, 0, intgamestate)
+            if aux_player_color != turn:
+                logits_score = thisSess.run(thislogits, feed_dict={thisxnode: self.input_tensor})
+            else:
+                logits_score = otherSess.run(otherlogits, feed_dict={otherxnode: self.input_tensor})
+            if turn == deterministic_player:
+                logits_score = np.squeeze(logits_score)
+                best_action=-1
+                largest_score=0
+                for action in empty_points:
+                    if best_action == -1:
+                        largest_score = logits_score[action]
+                        best_action = action
+                    elif logits_score[action] > largest_score:
+                        largest_score=logits_score[action]
+                        best_action = action
+                selected_int_move = best_action
+            else:
+                selected_int_move = softmax_selection(logits_score, empty_points)
+            black_groups, white_groups = GameCheck.updateUF(intgamestate, black_groups, white_groups,
+                                                            selected_int_move, turn, self.boardsize)
+            game_status = GameCheck.winner(black_groups, white_groups)
+            intgamestate.append(selected_int_move)
+            empty_points.remove(selected_int_move)
+            turn = HexColor.EMPTY - turn
+
+        reward = 0.25 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -1.0/len(intgamestate) - 0.25
+        #print('played one game')
+        return intgamestate, reward, deterministic_player
+
+
 
     '''
     self-play a batch of games using policy net,
     naive_pg:
     simulate K times, take the min.
     '''
-    def playbatchgame(self, batchsize,thislogits, thisxnode, otherlogits, otherxnode, thisSess, otherSess):
+    def playbatchgame(self, batchsize,thislogits, thisxnode, otherlogits, otherxnode, thisSess, otherSess, with_deterministic_player=False):
         intgames = []
         gameresultlist = []
+        deterplayerlist=[]
         batch_cnt = 0
         while batch_cnt < batchsize:
             self.input_tensor.fill(0)
             opening=np.random.randint(0,self.boardsize*self.boardsize)
             intgamestate = [opening]
-            intmoveseq, gameresult=self.playonegame(starting_intgamestate=intgamestate, thislogits=thislogits,
+            if with_deterministic_player:
+                intmoveseq, gameresult, deter_player=self.play_deterministic_game(intgamestate, thislogits, thisxnode, otherlogits, otherxnode, thisSess, otherSess)
+                deterplayerlist.append(deter_player)
+            else:
+                intmoveseq, gameresult=self.playonegame(starting_intgamestate=intgamestate, thislogits=thislogits,
                              thisxnode=thisxnode, otherlogits=otherlogits, otherxnode=otherxnode, thisSess=thisSess, otherSess=otherSess)
             intgames.append(intmoveseq)
             gameresultlist.append(gameresult)
             batch_cnt += 1
         print('played a batch of games')
-        return intgames, gameresultlist
+        if with_deterministic_player:
+            return intgames, gameresultlist, deterplayerlist
+        else:
+            return intgames, gameresultlist
 
     '''
     Given a supervised learning trained policy, use policy gradient to refine it!
@@ -190,6 +252,80 @@ class PolicyGradient(object):
         self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
         self.sess.close()
         print('Done PG training')
+
+    def policygradient_adversarial_deterministic(self, output_dir, is_alphago_like=False):
+        batch_size = self.hpr['batch_size']
+        max_iterations = self.hpr['max_iteration']
+        learning_rate = self.hpr['step_size']
+        '''
+        PG use the same architecture except that the loss function has a Reward value!
+        '''
+        with self.g.as_default():
+            crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
+            rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
+            loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+
+        ite = 0
+        outputname = 'adversarial_pg_d.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
+        if is_alphago_like:
+            outputname = 'alphagolike_adversarial_pg_d.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
+        while ite < max_iterations:
+            print('d adver pg iteration ', ite)
+            if is_alphago_like:
+                intgamelist, resultlist, dplayerlist = self.playbatchgame(batch_size, self.this_logits, self.cnn.x_node_dict[self.boardsize],
+                                                             self.aux_logits, self.cnn2.x_node_dict[self.boardsize], self.sess, self.other_sess, True)
+            else:
+                intgamelist, resultlist, dplayerlist = self.playbatchgame(batch_size, self.this_logits,
+                                                             self.cnn.x_node_dict[self.boardsize], self.this_logits,
+                                                             self.cnn.x_node_dict[self.boardsize], self.sess, self.sess, True)
+
+            positionactionlist = []
+            actionrewardlist=[]
+            for i in range(len(intgamelist)):
+                intgame=intgamelist[i]
+                for j in range(2,len(intgame)):
+                    if j % 2 == 0 and dplayerlist[i] == HexColor.WHITE:
+                        continue
+                    if j%2 !=0 and dplayerlist[i] == HexColor.BLACK:
+                        continue
+
+                    s_a=intgame[:j]
+                    relative_reward=-resultlist[i] if len(s_a)%2 == 0 else resultlist[i]
+                    positionactionlist.append(s_a)
+                    #rewards[batch_state_no]=relative_reward
+                    actionrewardlist.append(relative_reward)
+            
+            print(len(actionrewardlist),'states in a gamebatch')
+            paUtil = OnlinePositionActionUtil(batch_size=len(positionactionlist), boardsize=self.boardsize)
+            paUtil.prepare_next_batch(positionactionlist)
+            self.sess.run(optimizer, feed_dict={self.cnn.x_node_dict[self.boardsize]: paUtil.batch_positions,
+                                           self.cnn.y_star: paUtil.batch_labels, rewards_node: actionrewardlist})
+            ite += 1
+            if ite % 10 == 0:
+                self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
+            if is_alphago_like:
+                l2 = [f for f in os.listdir(output_dir) if f.endswith(".meta")]
+                if len(l2) == 0:
+                    continue
+                if np.random.random()<1.0/len(l2):
+                    continue
+                selected_model=np.random.choice(l2)
+                selected_model= selected_model[0:-len('.meta')]
+                selected_model=os.path.join(output_dir, selected_model)
+                print('selected model:', selected_model)
+                self.aux_saver.restore(self.other_sess, selected_model)
+                self.input_tensor.fill(0)
+                print(self.other_sess.run(self.aux_logits, feed_dict={self.cnn2.x_node_dict[self.boardsize]: self.input_tensor}))
+        self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
+        self.sess.close()
+        print('Done deterministic adver PG training')
+
+
+
+
+
+
 
     def to_tenary_string(self, intgamestate):
         s=['0']*(self.boardsize*self.boardsize)
@@ -310,6 +446,7 @@ if __name__ == "__main__":
 
     if args.adversarial:
         hyperparameter['topk']=3
-        pg.policy_gradient_adversarial_v1(output_dir=args.output_dir)
+        pg.policygradient_adversarial_deterministic(output_dir=args.output_dir, is_alphago_lie=False)
+        #pg.policy_gradient_adversarial_v1(output_dir=args.output_dir)
         print('Doing adversarial policy gradient')
         exit(0)
