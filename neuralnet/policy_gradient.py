@@ -162,7 +162,7 @@ class PolicyGradient(object):
     naive_pg:
     simulate K times, take the min.
     '''
-    def playbatchgame(self, batchsize,thislogits, thisxnode, otherlogits, otherxnode, thisSess, otherSess, with_deterministic_player=False):
+    def playbatchgame(self, batchsize,thislogits, thisxnode, otherlogits, otherxnode, thisSess, otherSess, with_fixed_player=False):
         intgames = []
         gameresultlist = []
         deterplayerlist=[]
@@ -171,7 +171,7 @@ class PolicyGradient(object):
             self.input_tensor.fill(0)
             opening=np.random.randint(0,self.boardsize*self.boardsize)
             intgamestate = [opening]
-            if with_deterministic_player:
+            if with_fixed_player:
                 intmoveseq, gameresult, deter_player=self.play_deterministic_game(intgamestate, thislogits, thisxnode, otherlogits, otherxnode, thisSess, otherSess)
                 deterplayerlist.append(deter_player)
             else:
@@ -181,7 +181,7 @@ class PolicyGradient(object):
             gameresultlist.append(gameresult)
             batch_cnt += 1
         print('played a batch of games')
-        if with_deterministic_player:
+        if with_fixed_player:
             return intgames, gameresultlist, deterplayerlist
         else:
             return intgames, gameresultlist
@@ -202,7 +202,7 @@ class PolicyGradient(object):
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
-            optimizer = tf.train.AdamOptimizer().minimize(loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
             uninitialized_vars = []
             for var in tf.global_variables():
                 try:
@@ -262,7 +262,7 @@ class PolicyGradient(object):
         self.sess.close()
         print('Done PG training')
 
-    def policygradient_adversarial_deterministic(self, output_dir, is_alphago_like=False):
+    def policygradient_adversarial(self, output_dir, is_alphago_like=False):
         batch_size = self.hpr['batch_size']
         max_iterations = self.hpr['max_iteration']
         learning_rate = self.hpr['step_size']
@@ -273,7 +273,7 @@ class PolicyGradient(object):
             crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
-            optimizer = tf.train.AdamOptimizer().minimize(loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
             uninitialized_vars = []
             for var in tf.global_variables():
                 try:
@@ -284,29 +284,26 @@ class PolicyGradient(object):
             self.sess.run(init_new_vars_op)
 
         ite = 0
-        outputname = 'adversarial_pg_d.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
+        outputname = 'adversarial_pg.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
         if is_alphago_like:
             outputname = 'alphagolike_adversarial_pg_d.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
+        player_to_adjust=0
         while ite < max_iterations:
-            print('d adver pg iteration ', ite)
+            print('adver pg iteration ', ite)
             if is_alphago_like:
-                intgamelist, resultlist, dplayerlist = self.playbatchgame(batch_size, self.this_logits, self.cnn.x_node_dict[self.boardsize],
-                                                             self.aux_logits, self.cnn2.x_node_dict[self.boardsize], self.sess, self.other_sess, True)
+                intgamelist, resultlist = self.playbatchgame(batch_size, self.this_logits, self.cnn.x_node_dict[self.boardsize],
+                                                             self.aux_logits, self.cnn2.x_node_dict[self.boardsize], self.sess, self.other_sess, False)
             else:
-                intgamelist, resultlist, dplayerlist = self.playbatchgame(batch_size, self.this_logits,
-                                                             self.cnn.x_node_dict[self.boardsize], self.this_logits,
-                                                             self.cnn.x_node_dict[self.boardsize], self.sess, self.sess, True)
+                intgamelist, resultlist = self.playbatchgame(batch_size, self.this_logits, self.cnn.x_node_dict[self.boardsize], 
+                                                            self.this_logits, self.cnn.x_node_dict[self.boardsize], self.sess, self.sess, False)
 
             positionactionlist = []
             actionrewardlist=[]
             for i in range(len(intgamelist)):
                 intgame=intgamelist[i]
                 for j in range(2,len(intgame)):
-                    if j % 2 == 0 and dplayerlist[i] == HexColor.WHITE:
+                    if j%2 == player_to_adjust: 
                         continue
-                    if j%2 !=0 and dplayerlist[i] == HexColor.BLACK:
-                        continue
-
                     s_a=intgame[:j]
                     relative_reward=-resultlist[i] if len(s_a)%2 == 0 else resultlist[i]
                     positionactionlist.append(s_a)
@@ -319,6 +316,7 @@ class PolicyGradient(object):
             self.sess.run(optimizer, feed_dict={self.cnn.x_node_dict[self.boardsize]: paUtil.batch_positions,
                                            self.cnn.y_star: paUtil.batch_labels, rewards_node: actionrewardlist})
             ite += 1
+            player_to_adjust=(player_to_adjust+1)%2
             if ite % 10 == 0:
                 self.saver.save(self.sess, os.path.join(output_dir, outputname), global_step=ite)
             if is_alphago_like:
@@ -365,7 +363,7 @@ class PolicyGradient(object):
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
-            optimizer = tf.train.AdamOptimizer().minimize(loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
             uninitialized_vars = []
             for var in tf.global_variables():
                 try:
@@ -435,7 +433,7 @@ if __name__ == "__main__":
     parser.add_argument('--topk', type=int, default=1, help='default 1')
 
     parser.add_argument('--alphago_like', action='store_true', default=False, help='binary value, default False')
-    parser.add_argument('--step_size', type=float, default=0.01, help='policy gradient step_size (learning rate)')
+    parser.add_argument('--step_size', type=float, default=0.0001, help='policy gradient step_size (learning rate)')
     parser.add_argument('--adversarial', action='store_true', default=False, help='binary value, default False')
     args = parser.parse_args()
 
@@ -466,7 +464,7 @@ if __name__ == "__main__":
 
     if args.adversarial:
         hyperparameter['topk']=3
-        pg.policygradient_adversarial_deterministic(output_dir=args.output_dir, is_alphago_like=False)
+        pg.policygradient_adversarial(output_dir=args.output_dir, is_alphago_like=False)
         #pg.policy_gradient_adversarial_v1(output_dir=args.output_dir)
         print('Doing adversarial policy gradient')
         exit(0)

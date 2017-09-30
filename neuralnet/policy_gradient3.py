@@ -199,7 +199,7 @@ class PolicyGradient(object):
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
-            optimizer = tf.train.AdamOptimizer().minimize(loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
             uninitialized_vars = []
             for var in tf.global_variables():
                 try:
@@ -283,7 +283,7 @@ class PolicyGradient(object):
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
-            optimizer = tf.train.AdamOptimizer().minimize(loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
             uninitialized_vars = []
             for var in tf.global_variables():
                 try:
@@ -371,7 +371,7 @@ class PolicyGradient(object):
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
-            optimizer = tf.train.AdamOptimizer().minimize(loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
             uninitialized_vars = []
             for var in tf.global_variables():
                 try:
@@ -453,7 +453,7 @@ class PolicyGradient(object):
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
-            optimizer = tf.train.AdamOptimizer().minimize(loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
             uninitialized_vars = []
             for var in tf.global_variables():
                 try:
@@ -552,7 +552,7 @@ if __name__ == "__main__":
     parser.add_argument('--topk', type=int, default=3, help='k')
 
     parser.add_argument('--alphago_like', action='store_true', default=False, help='binary value, default False')
-    parser.add_argument('--step_size', type=float, default=0.01, help='policy gradient step_size (learning rate)')
+    parser.add_argument('--step_size', type=float, default=0.0001, help='policy gradient step_size (learning rate)')
     parser.add_argument('--adversarial', action='store_true', default=False, help='binary value, default False')
     parser.add_argument('--adversarialv2', action='store_true', default=False, help='using deterministic playout?')
     parser.add_argument('--adversarialv3', action='store_true', default=False, help='one step lookahead then playout?')
