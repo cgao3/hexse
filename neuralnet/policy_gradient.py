@@ -203,6 +203,14 @@ class PolicyGradient(object):
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
             optimizer = tf.train.AdamOptimizer().minimize(loss)
+            uninitialized_vars = []
+            for var in tf.global_variables():
+                try:
+                    self.sess.run(var)
+                except tf.errors.FailedPreconditionError:
+                    uninitialized_vars.append(var)
+            init_new_vars_op = tf.variables_initializer(uninitialized_vars)
+            self.sess.run(init_new_vars_op)
 
         ite = 0
         outputname = 'naive_pg.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -265,8 +273,15 @@ class PolicyGradient(object):
             crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
-            #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
             optimizer = tf.train.AdamOptimizer().minimize(loss)
+            uninitialized_vars = []
+            for var in tf.global_variables():
+                try:
+                    self.sess.run(var)
+                except tf.errors.FailedPreconditionError:
+                    uninitialized_vars.append(var)
+            init_new_vars_op = tf.variables_initializer(uninitialized_vars)
+            self.sess.run(init_new_vars_op)
 
         ite = 0
         outputname = 'adversarial_pg_d.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -351,6 +366,14 @@ class PolicyGradient(object):
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
             #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
             optimizer = tf.train.AdamOptimizer().minimize(loss)
+            uninitialized_vars = []
+            for var in tf.global_variables():
+                try:
+                    self.sess.run(var)
+                except tf.errors.FailedPreconditionError:
+                    uninitialized_vars.append(var)
+            init_new_vars_op = tf.variables_initializer(uninitialized_vars)
+            self.sess.run(init_new_vars_op)
 
         ite = 0
         outputname = 'adversarial_pg.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
