@@ -99,7 +99,7 @@ class PolicyGradient(object):
             empty_points.remove(selected_int_move)
             turn = HexColor.EMPTY - turn
 
-        reward = 0.25 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -1.0/len(intgamestate) -0.25
+        reward = 0.25 + 1.0/len(intgamestate) if game_status == HexColor.BLACK else -1.0/len(intgamestate) - 0.25
         #print('played one game')other_sess
         return intgamestate, reward
 
@@ -201,7 +201,8 @@ class PolicyGradient(object):
             crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            optimizer = tf.train.AdamOptimizer().minimize(loss)
 
         ite = 0
         outputname = 'naive_pg.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -264,7 +265,8 @@ class PolicyGradient(object):
             crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            optimizer = tf.train.AdamOptimizer().minimize(loss)
 
         ite = 0
         outputname = 'adversarial_pg_d.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -321,12 +323,6 @@ class PolicyGradient(object):
         self.sess.close()
         print('Done deterministic adver PG training')
 
-
-
-
-
-
-
     def to_tenary_string(self, intgamestate):
         s=['0']*(self.boardsize*self.boardsize)
         turn= HexColor.BLACK
@@ -353,7 +349,8 @@ class PolicyGradient(object):
             crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            optimizer = tf.train.AdamOptimizer().minimize(loss)
 
         ite = 0
         outputname = 'adversarial_pg.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -446,7 +443,7 @@ if __name__ == "__main__":
 
     if args.adversarial:
         hyperparameter['topk']=3
-        pg.policygradient_adversarial_deterministic(output_dir=args.output_dir, is_alphago_lie=False)
+        pg.policygradient_adversarial_deterministic(output_dir=args.output_dir, is_alphago_like=False)
         #pg.policy_gradient_adversarial_v1(output_dir=args.output_dir)
         print('Doing adversarial policy gradient')
         exit(0)

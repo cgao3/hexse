@@ -198,7 +198,8 @@ class PolicyGradient(object):
             crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            optimizer = tf.train.AdamOptimizer().minimize(loss)
         rewards = np.ndarray(shape=(batch_size,), dtype=np.float32)
         paUtil = OnlinePositionActionUtil(batch_size=batch_size, boardsize=self.boardsize)
 
@@ -273,7 +274,8 @@ class PolicyGradient(object):
             crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            optimizer = tf.train.AdamOptimizer().minimize(loss)
 
         ite = 0
         outputname = 'adversarial_pg_v1.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -352,7 +354,8 @@ class PolicyGradient(object):
             crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            optimizer = tf.train.AdamOptimizer().minimize(loss)
 
         ite = 0
         outputname = 'adversarial_pg_v2.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -425,7 +428,8 @@ class PolicyGradient(object):
             crossentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.cnn.y_star, logits=self.this_logits)
             rewards_node = tf.placeholder(dtype=tf.float32, shape=(None,), name='reward_node')
             loss = tf.reduce_mean(tf.multiply(rewards_node, crossentropy))
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate / batch_size).minimize(loss)
+            optimizer = tf.train.AdamOptimizer().minimize(loss)
 
         ite = 0
         outputname = 'adversarial_pg_v3.model' + repr(self.boardsize) + 'x' + repr(self.boardsize)
@@ -513,7 +517,7 @@ if __name__ == "__main__":
     parser.add_argument('--boardsize', type=int, default=9, help='default 9')
     parser.add_argument('--n_hidden_layer', type=int, default=6, help='default 6')
 
-    parser.add_argument('--topk', type=int, default=5, help='k')
+    parser.add_argument('--topk', type=int, default=3, help='k')
 
     parser.add_argument('--alphago_like', action='store_true', default=False, help='binary value, default False')
     parser.add_argument('--step_size', type=float, default=0.01, help='policy gradient step_size (learning rate)')
